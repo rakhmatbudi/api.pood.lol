@@ -12,7 +12,8 @@ const menuItemRoutes = require('./routes/menuItems');
 const paymentRoutes = require('./routes/payments');
 const paymentModeRoutes = require('./routes/paymentModes');
 const dataSyncRoutes = require('./routes/dataSyncServices');
-const taxRoutes = require('./routes/taxes'); // Import the new tax route
+const taxRoutes = require('./routes/taxes'); 
+const discountRoutes = require('./routes/discounts');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,7 +32,8 @@ app.use('/menu-items', menuItemRoutes);
 app.use('/payments', paymentRoutes);
 app.use('/payment-modes', paymentModeRoutes);
 app.use('/data-sync', dataSyncRoutes);
-app.use('/taxes', taxRoutes); // Use the new tax route
+app.use('/taxes', taxRoutes); 
+app.use('/discounts', discountRoutes);
 
 // Root route
 app.get('/', (req, res) => {
