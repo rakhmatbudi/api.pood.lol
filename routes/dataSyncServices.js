@@ -38,4 +38,15 @@ router.post('/items', async (req, res, next) => {
     }
 });
 
-module.exports = router;
+// New route for triggering only menu item variants synchronization
+router.post('/variants', async (req, res, next) => {
+    try {
+        await DataSyncService.syncItemVariants();
+        res.status(200).json({ message: 'Menu item variants synchronized successfully.' });
+    } catch (error) {
+        console.error("Error in /sync/variants route", error);
+        next(error);
+    }
+});
+
+module.exports = router;

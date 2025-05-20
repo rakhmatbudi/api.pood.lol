@@ -1,5 +1,6 @@
 // controllers/menuItemController.js
 const MenuItem = require('../models/MenuItem');
+const MenuItemVariant = require('../models/MenuItemVariant'); // <-- Add/confirm this import!
 
 exports.getAllMenuItems = async (req, res) => {
   try {
