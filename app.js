@@ -1,3 +1,5 @@
+//apps.js
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -18,6 +20,7 @@ const paymentModeRoutes = require('./routes/paymentModes');
 const dataSyncRoutes = require('./routes/dataSyncServices');
 const taxRoutes = require('./routes/taxes');
 const discountRoutes = require('./routes/discounts');
+const roundingRoutes = require('./routes/roundings');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,6 +46,7 @@ app.use('/payment-modes', paymentModeRoutes);
 app.use('/data-sync', dataSyncRoutes);
 app.use('/taxes', taxRoutes);
 app.use('/discounts', discountRoutes);
+app.use('/roundings', roundingRoutes); 
 
 // Root route
 app.get('/', (req, res) => {
