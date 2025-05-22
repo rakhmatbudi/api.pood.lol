@@ -1,3 +1,4 @@
+// controllers/orderController.js
 const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
 
@@ -21,14 +22,14 @@ exports.getAllOrders = async (req, res) => {
 exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    
+
     if (!order) {
       return res.status(404).json({
         status: 'error',
         message: 'Order not found'
       });
     }
-    
+
     res.status(200).json({
       status: 'success',
       data: order
@@ -58,7 +59,8 @@ exports.createOrder = async (req, res) => {
       table_number: req.body.table_number,
       server_id: req.body.server_id,
       customer_id: req.body.customer_id,
-      cashier_session_id: req.body.cashier_session_id, // Get cashier_session_id from request body
+      cashier_session_id: req.body.cashier_session_id,
+      order_type_id: req.body.order_type_id, // <--- ADDED THIS LINE
     };
     const newOrder = await Order.create(newOrderData);
     res.status(201).json({ status: 'success', data: newOrder });
@@ -71,14 +73,14 @@ exports.createOrder = async (req, res) => {
 exports.updateOrder = async (req, res) => {
   try {
     const updatedOrder = await Order.update(req.params.id, req.body);
-    
+
     if (!updatedOrder) {
       return res.status(404).json({
         status: 'error',
         message: 'Order not found or no fields to update'
       });
     }
-    
+
     res.status(200).json({
       status: 'success',
       data: updatedOrder
@@ -95,14 +97,14 @@ exports.updateOrder = async (req, res) => {
 exports.deleteOrder = async (req, res) => {
   try {
     const deletedOrder = await Order.delete(req.params.id);
-    
+
     if (!deletedOrder) {
       return res.status(404).json({
         status: 'error',
         message: 'Order not found'
       });
     }
-    
+
     res.status(200).json({
       status: 'success',
       message: 'Order deleted successfully'
@@ -119,7 +121,7 @@ exports.deleteOrder = async (req, res) => {
 exports.getOrdersByStatus = async (req, res) => {
   try {
     const { status } = req.params;
-    
+
     // Validate status parameter
     if (!['open', 'closed', 'voided'].includes(status)) {
       return res.status(400).json({
@@ -127,9 +129,9 @@ exports.getOrdersByStatus = async (req, res) => {
         message: 'Invalid status parameter. Must be one of: open, closed, voided'
       });
     }
-    
+
     const orders = await Order.findByStatus(status);
-    
+
     res.status(200).json({
       status: 'success',
       count: orders.length,
@@ -147,7 +149,7 @@ exports.getOrdersByStatus = async (req, res) => {
 exports.getOpenOrders = async (req, res) => {
   try {
     const orders = await Order.findOpenOrders();
-    
+
     res.status(200).json({
       status: 'success',
       count: orders.length,

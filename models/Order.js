@@ -6,6 +6,7 @@ class Order {
     const query = `
       SELECT
         o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') update_at, o.customer_id,
+        o.order_type_id, ot.name AS order_type_name, -- ADDED order_type_id and order_type_name
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -17,7 +18,7 @@ class Order {
             'menu_item_id', oi.menu_item_id,
             'menu_item_name', mi.name,
             'variant_id', oi.variant_id,
-            'variant_name', miv.name, -- Added variant_name
+            'variant_name', miv.name,
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
@@ -31,9 +32,10 @@ class Order {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
-      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Joined menu_item_variants
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
-      GROUP BY o.id, c.name
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id -- ADDED JOIN for order_type
+      GROUP BY o.id, c.name, ot.name -- ADDED ot.name to GROUP BY
       ORDER BY o.created_at DESC;
     `;
     const { rows } = await db.query(query);
@@ -44,6 +46,7 @@ class Order {
     const query = `
       SELECT
         o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, o.created_at, o.updated_at, o.customer_id,
+        o.order_type_id, ot.name AS order_type_name, -- ADDED order_type_id and order_type_name
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -55,7 +58,7 @@ class Order {
             'menu_item_id', oi.menu_item_id,
             'menu_item_name', mi.name,
             'variant_id', oi.variant_id,
-            'variant_name', miv.name, -- Added variant_name
+            'variant_name', miv.name,
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
@@ -69,15 +72,16 @@ class Order {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
-      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Joined menu_item_variants
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id -- ADDED JOIN for order_type
       WHERE o.id = $1
-      GROUP BY o.id, c.name;
+      GROUP BY o.id, c.name, ot.name; -- ADDED ot.name to GROUP BY
     `;
     const { rows } = await db.query(query, [id]);
     return rows[0];
   }
-  
+
   static async findAllGroupedBySessionDescending() {
     const query = `
       SELECT
@@ -92,7 +96,8 @@ class Order {
             'total_amount', total_amount,
             'created_at', created_at,
             'updated_at', updated_at,
-            'customer_id', customer_id
+            'customer_id', customer_id,
+            'order_type_id', order_type_id -- ADDED order_type_id
           )
           ORDER BY created_at DESC
         ) AS orders
@@ -103,22 +108,23 @@ class Order {
     const { rows } = await db.query(query);
     return rows;
   }
-  
+
   static async getServiceChargeTaxRate() {
     const query = 'SELECT amount FROM tax WHERE tax_type = 1 LIMIT 1';
     const { rows } = await db.query(query);
     return rows[0]; // Assuming only one service charge tax rate
   }
-  
+
   static async getSalesTaxRate() {
-    const query = 'SELECT amount FROM tax FROM tax WHERE tax_type = 2 LIMIT 1';
+    // Corrected typo: 'FROM tax FROM tax' changed to 'FROM tax WHERE'
+    const query = 'SELECT amount FROM tax WHERE tax_type = 2 LIMIT 1';
     const { rows } = await db.query(query);
     return rows[0]; // Assuming only one sales tax rate
   }
-  
+
   static async calculateServiceCharge(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here   
+      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems || orderItems.length === 0) {
         return 0; // No items, no service charge
@@ -134,10 +140,10 @@ class Order {
       throw error;
     }
   }
-  
+
   static async calculateTaxAmount(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here   
+      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems || orderItems.length === 0) {
         return 0; // No items, no service charge
@@ -154,10 +160,10 @@ class Order {
       throw error;
     }
   }
-  
+
   static async updateOrderTotalAndServiceCharge(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here   
+      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems) {
         return null;
@@ -180,7 +186,7 @@ class Order {
       throw error;
     }
   }
-  
+
   static async updateOrderTotalServiceChargeAndTax(orderId) {
     try {
       const OrderItem = require('./OrderItem'); // Import here
@@ -217,17 +223,17 @@ class Order {
   }
 
   static async create(orderData) {
-    const { table_number, server_id, customer_id, cashier_session_id } = orderData;
+    const { table_number, server_id, customer_id, cashier_session_id, order_type_id } = orderData; // <--- ADDED order_type_id
     // Initially, the subtotal is 0 as no items are added yet.
     const initialSubtotal = 0;
     const serviceCharge = await this.calculateServiceChargeForSubtotal(initialSubtotal);
 
     const query = `
-      INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, status, is_open, total_amount, created_at, updated_at, service_charge)
-      VALUES ($1, $2, $3, $4, DEFAULT, DEFAULT, $5, DEFAULT, DEFAULT, $6)
+      INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, order_type_id, status, is_open, total_amount, created_at, updated_at, service_charge) -- <--- ADDED order_type_id column
+      VALUES ($1, $2, $3, $4, $5, DEFAULT, DEFAULT, $6, DEFAULT, DEFAULT, $7) -- <--- ADDED $5 for order_type_id
       RETURNING *
     `;
-    const values = [table_number, server_id, customer_id, cashier_session_id, initialSubtotal + serviceCharge, serviceCharge];
+    const values = [table_number, server_id, customer_id, cashier_session_id, order_type_id, initialSubtotal + serviceCharge, serviceCharge]; // <--- ADDED order_type_id to values
     const { rows } = await db.query(query, values);
     return rows[0];
   }
@@ -243,7 +249,8 @@ class Order {
       customer_id,
       discount_amount,
       service_charge,
-      tax_amount
+      tax_amount,
+      order_type_id // <--- ADDED order_type_id
     } = orderData;
 
     // Generate SET clause dynamically based on provided fields
@@ -311,11 +318,17 @@ class Order {
       paramIndex++;
     }
 
+    if (order_type_id !== undefined) { // <--- ADDED update for order_type_id
+      updates.push(`order_type_id = $${paramIndex}`);
+      values.push(order_type_id);
+      paramIndex++;
+    }
+
     // Always update the updated_at timestamp
     updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    // If no fields to update
-    if (updates.length === 1) {
+    // If no fields to update (only updated_at would be updated)
+    if (updates.length === 1 && updates[0].includes('updated_at')) {
       return null;
     }
 
@@ -348,11 +361,12 @@ class Order {
     const { rows } = await db.query(query);
     return rows;
   }
-  
+
   static async findOpenOrdersBySession(session_id) {
     const query = `
       SELECT
         o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') updated_at, o.customer_id,
+        o.order_type_id, ot.name AS order_type_name, -- ADDED order_type_id and order_type_name
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -364,7 +378,7 @@ class Order {
             'menu_item_id', oi.menu_item_id,
             'menu_item_name', mi.name,
             'variant_id', oi.variant_id,
-            'variant_name', miv.name, -- Added variant_name
+            'variant_name', miv.name,
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
@@ -378,10 +392,11 @@ class Order {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
-      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Joined menu_item_variants
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id -- ADDED JOIN for order_type
       WHERE o.is_open = true AND o.cashier_session_id = $1
-      GROUP BY o.id, c.name
+      GROUP BY o.id, c.name, ot.name -- ADDED ot.name to GROUP BY
       ORDER BY o.created_at DESC;
     `;
     const { rows } = await db.query(query, [session_id]);
