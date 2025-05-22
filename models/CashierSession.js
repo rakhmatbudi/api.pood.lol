@@ -119,12 +119,6 @@ class CashierSession {
     static async close(id, closeData) {
       const { closing_amount, expected_amount, notes } = closeData;
       
-      // Debug output to verify values
-      console.log('ID type:', typeof id, 'value:', id);
-      console.log('closing_amount type:', typeof closing_amount, 'value:', closing_amount);
-      console.log('expected_amount type:', typeof expected_amount, 'value:', expected_amount);
-      console.log('notes type:', typeof notes, 'value:', notes);
-      
       try {
         // Use a different approach with prepared statement
         const query = {
@@ -140,8 +134,6 @@ class CashierSession {
           values: [closing_amount, expected_amount, notes, id]
         };
         
-        console.log('Executing query:', query.text);
-        console.log('With values:', query.values);
         
         const result = await db.query(query);
         

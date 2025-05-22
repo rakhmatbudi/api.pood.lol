@@ -21,6 +21,8 @@ const dataSyncRoutes = require('./routes/dataSyncServices');
 const taxRoutes = require('./routes/taxes');
 const discountRoutes = require('./routes/discounts');
 const roundingRoutes = require('./routes/roundings');
+const customerRoutes = require('./routes/customers');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,13 +42,14 @@ app.use('/orders', orderRoutes);
 app.use('/cashier-sessions', cashierSessionRoutes);
 app.use('/users', userRoutes);
 app.use('/cash-denominations', cashDenominationRoutes);
-app.use('/menu-items', menuItemRoutes); // Your menu item routes
+app.use('/menu-items', menuItemRoutes); 
 app.use('/payments', paymentRoutes);
 app.use('/payment-modes', paymentModeRoutes);
 app.use('/data-sync', dataSyncRoutes);
 app.use('/taxes', taxRoutes);
 app.use('/discounts', discountRoutes);
 app.use('/roundings', roundingRoutes); 
+app.use('/customers', customerRoutes); 
 
 // Root route
 app.get('/', (req, res) => {
