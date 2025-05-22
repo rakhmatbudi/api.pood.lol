@@ -17,6 +17,7 @@ class Order {
             'menu_item_id', oi.menu_item_id,
             'menu_item_name', mi.name,
             'variant_id', oi.variant_id,
+            'variant_name', miv.name, -- Added variant_name
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
@@ -30,6 +31,7 @@ class Order {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Joined menu_item_variants
       LEFT JOIN customer c ON o.customer_id = c.id
       GROUP BY o.id, c.name
       ORDER BY o.created_at DESC;
@@ -53,6 +55,7 @@ class Order {
             'menu_item_id', oi.menu_item_id,
             'menu_item_name', mi.name,
             'variant_id', oi.variant_id,
+            'variant_name', miv.name, -- Added variant_name
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
@@ -66,6 +69,7 @@ class Order {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Joined menu_item_variants
       LEFT JOIN customer c ON o.customer_id = c.id
       WHERE o.id = $1
       GROUP BY o.id, c.name;
@@ -107,14 +111,14 @@ class Order {
   }
   
   static async getSalesTaxRate() {
-    const query = 'SELECT amount FROM tax WHERE tax_type = 2 LIMIT 1';
+    const query = 'SELECT amount FROM tax FROM tax WHERE tax_type = 2 LIMIT 1';
     const { rows } = await db.query(query);
     return rows[0]; // Assuming only one sales tax rate
   }
   
   static async calculateServiceCharge(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here    
+      const OrderItem = require('./OrderItem'); // Import here   
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems || orderItems.length === 0) {
         return 0; // No items, no service charge
@@ -133,7 +137,7 @@ class Order {
   
   static async calculateTaxAmount(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here    
+      const OrderItem = require('./OrderItem'); // Import here   
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems || orderItems.length === 0) {
         return 0; // No items, no service charge
@@ -153,7 +157,7 @@ class Order {
   
   static async updateOrderTotalAndServiceCharge(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here    
+      const OrderItem = require('./OrderItem'); // Import here   
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems) {
         return null;
@@ -360,6 +364,7 @@ class Order {
             'menu_item_id', oi.menu_item_id,
             'menu_item_name', mi.name,
             'variant_id', oi.variant_id,
+            'variant_name', miv.name, -- Added variant_name
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
@@ -373,6 +378,7 @@ class Order {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Joined menu_item_variants
       LEFT JOIN customer c ON o.customer_id = c.id
       WHERE o.is_open = true AND o.cashier_session_id = $1
       GROUP BY o.id, c.name
