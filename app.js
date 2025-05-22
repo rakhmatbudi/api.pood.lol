@@ -22,6 +22,7 @@ const taxRoutes = require('./routes/taxes');
 const discountRoutes = require('./routes/discounts');
 const roundingRoutes = require('./routes/roundings');
 const customerRoutes = require('./routes/customers');
+const orderTypeRoutes = require('./routes/orderTypes');
 
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/taxes', taxRoutes);
 app.use('/discounts', discountRoutes);
 app.use('/roundings', roundingRoutes); 
 app.use('/customers', customerRoutes); 
+app.use('/order-types', orderTypeRoutes);
 
 // Root route
 app.get('/', (req, res) => {
