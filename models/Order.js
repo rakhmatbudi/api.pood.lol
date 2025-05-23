@@ -237,6 +237,42 @@ class Order {
     const { rows } = await db.query(query, values);
     return rows[0];
   }
+  
+  static async updateOrderStatus(orderId, status) {
+    const client = await db.connect(); // Use a client for transactions
+    try {
+      await client.query('BEGIN'); // Start transaction
+
+      const query = `
+        UPDATE orders
+        SET status = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING *
+      `;
+      const { rows } = await client.query(query, [status, orderId]);
+      const updatedOrder = rows[0];
+
+      if (updatedOrder && status === 'cancelled') {
+        // Cascade update to order items if order is cancelled
+        const updateItemsQuery = `
+          UPDATE order_items
+          SET status = 'cancelled', updated_at = NOW()
+          WHERE order_id = $1
+          RETURNING *
+        `;
+        await client.query(updateItemsQuery, [orderId]);
+      }
+
+      await client.query('COMMIT'); // Commit transaction
+      return updatedOrder;
+    } catch (error) {
+      await client.query('ROLLBACK'); // Rollback on error
+      console.error('Error updating order status and cascading:', error);
+      throw error;
+    } finally {
+      client.release(); // Release client back to the pool
+    }
+  }
 
   static async update(id, orderData) {
     const {

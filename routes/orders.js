@@ -15,6 +15,10 @@ router.post('/', validateOrder, orderController.createOrder);
 //  "cashier_session_id": 16
 //}
 
+router.put('/:id/status', orderController.updateOrderStatus);
+// Example usage: PUT http://localhost:3000/api/orders/5/status
+// Body: { "status": "cancelled" }
+
 router.get('/open/sessions/:cashier_session_id', orderController.getOpenOrdersBySession);
 router.get('/status/:status', orderController.getOrdersByStatus);
 router.get('/:id', orderController.getOrderById);
