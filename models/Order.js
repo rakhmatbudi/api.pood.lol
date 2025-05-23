@@ -1,12 +1,14 @@
 // models/Order.js
 const db = require('../config/db');
+const OrderItem = require('./OrderItem'); // Ensure OrderItem is imported here for calculations
 
 class Order {
   static async findAll() {
     const query = `
       SELECT
         o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') update_at, o.customer_id,
-        o.order_type_id, ot.name AS order_type_name, -- ADDED order_type_id and order_type_name
+        o.order_type_id, ot.name AS order_type_name,
+        o.order_status as order_status_id, os.name AS order_status_name, -- ADDED order_status_id and order_status_name
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -34,8 +36,9 @@ class Order {
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
       LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
-      LEFT JOIN order_type ot ON o.order_type_id = ot.id -- ADDED JOIN for order_type
-      GROUP BY o.id, c.name, ot.name -- ADDED ot.name to GROUP BY
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id
+      LEFT JOIN order_status os ON o.order_status = os.id -- ADDED JOIN for order_status
+      GROUP BY o.id, c.name, ot.name, os.name -- ADDED os.name to GROUP BY
       ORDER BY o.created_at DESC;
     `;
     const { rows } = await db.query(query);
@@ -46,7 +49,8 @@ class Order {
     const query = `
       SELECT
         o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, o.created_at, o.updated_at, o.customer_id,
-        o.order_type_id, ot.name AS order_type_name, -- ADDED order_type_id and order_type_name
+        o.order_type_id, ot.name AS order_type_name,
+        o.order_status as order_status_id, os.name AS order_status_name, -- ADDED order_status_id and order_status_name
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -74,9 +78,10 @@ class Order {
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
       LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
-      LEFT JOIN order_type ot ON o.order_type_id = ot.id -- ADDED JOIN for order_type
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id
+      LEFT JOIN order_status os ON o.order_status = os.id -- ADDED JOIN for order_status
       WHERE o.id = $1
-      GROUP BY o.id, c.name, ot.name; -- ADDED ot.name to GROUP BY
+      GROUP BY o.id, c.name, ot.name, os.name; -- ADDED os.name to GROUP BY
     `;
     const { rows } = await db.query(query, [id]);
     return rows[0];
@@ -97,7 +102,8 @@ class Order {
             'created_at', created_at,
             'updated_at', updated_at,
             'customer_id', customer_id,
-            'order_type_id', order_type_id -- ADDED order_type_id
+            'order_type_id', order_type_id,
+            'order_status_id', order_status -- ADDED order_status_id
           )
           ORDER BY created_at DESC
         ) AS orders
@@ -116,7 +122,6 @@ class Order {
   }
 
   static async getSalesTaxRate() {
-    // Corrected typo: 'FROM tax FROM tax' changed to 'FROM tax WHERE'
     const query = 'SELECT amount FROM tax WHERE tax_type = 2 LIMIT 1';
     const { rows } = await db.query(query);
     return rows[0]; // Assuming only one sales tax rate
@@ -124,7 +129,6 @@ class Order {
 
   static async calculateServiceCharge(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems || orderItems.length === 0) {
         return 0; // No items, no service charge
@@ -143,7 +147,6 @@ class Order {
 
   static async calculateTaxAmount(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems || orderItems.length === 0) {
         return 0; // No items, no service charge
@@ -163,7 +166,6 @@ class Order {
 
   static async updateOrderTotalAndServiceCharge(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems) {
         return null;
@@ -189,7 +191,6 @@ class Order {
 
   static async updateOrderTotalServiceChargeAndTax(orderId) {
     try {
-      const OrderItem = require('./OrderItem'); // Import here
       const orderItems = await OrderItem.findAllByOrderId(orderId);
       if (!orderItems) {
         return null;
@@ -223,33 +224,48 @@ class Order {
   }
 
   static async create(orderData) {
-    const { table_number, server_id, customer_id, cashier_session_id, order_type_id } = orderData; // <--- ADDED order_type_id
-    // Initially, the subtotal is 0 as no items are added yet.
-    const initialSubtotal = 0;
-    const serviceCharge = await this.calculateServiceChargeForSubtotal(initialSubtotal);
-
-    const query = `
-      INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, order_type_id, status, is_open, total_amount, created_at, updated_at, service_charge) -- <--- ADDED order_type_id column
-      VALUES ($1, $2, $3, $4, $5, DEFAULT, DEFAULT, $6, DEFAULT, DEFAULT, $7) -- <--- ADDED $5 for order_type_id
-      RETURNING *
-    `;
-    const values = [table_number, server_id, customer_id, cashier_session_id, order_type_id, initialSubtotal + serviceCharge, serviceCharge]; // <--- ADDED order_type_id to values
-    const { rows } = await db.query(query, values);
-    return rows[0];
+      const { table_number, server_id, customer_id, cashier_session_id, order_type_id } = orderData;
+      let { order_status } = orderData; // Use 'let' so it can be reassigned
+    
+      // If order_status is null or undefined, default it to 1
+      if (order_status === null || order_status === undefined) {
+        order_status = 1;
+      }
+    
+      // Initially, the subtotal is 0 as no items are added yet.
+      const initialSubtotal = 0;
+      const serviceCharge = await this.calculateServiceChargeForSubtotal(initialSubtotal);
+    
+      const query = `
+        INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, order_type_id, status, is_open, total_amount, created_at, updated_at, service_charge, order_status)
+        VALUES ($1, $2, $3, $4, $5, DEFAULT, DEFAULT, $6, DEFAULT, DEFAULT, $7, $8)
+        RETURNING *
+      `;
+      const values = [table_number, server_id, customer_id, cashier_session_id, order_type_id, initialSubtotal + serviceCharge, serviceCharge, order_status];
+      const { rows } = await db.query(query, values);
+      return rows[0];
   }
-  
+
   static async updateOrderStatus(orderId, status) {
     const client = await db.connect(); // Use a client for transactions
     try {
       await client.query('BEGIN'); // Start transaction
 
+      // Find the ID of the new status from the order_status table
+      const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
+      const { rows: statusRows } = await client.query(getStatusIdQuery, [status]);
+      if (statusRows.length === 0) {
+        throw new Error(`Invalid status name: ${status}`);
+      }
+      const newStatusId = statusRows[0].id;
+
       const query = `
         UPDATE orders
-        SET status = $1, updated_at = NOW()
-        WHERE id = $2
+        SET status = $1, order_status = $2, updated_at = NOW() -- UPDATED: set both varchar status and int foreign key
+        WHERE id = $3
         RETURNING *
       `;
-      const { rows } = await client.query(query, [status, orderId]);
+      const { rows } = await client.query(query, [status, newStatusId, orderId]);
       const updatedOrder = rows[0];
 
       if (updatedOrder && status === 'cancelled') {
@@ -279,14 +295,15 @@ class Order {
       table_number,
       server_id,
       cashier_session_id,
-      status,
+      status, // The varchar status
       is_open,
       total_amount,
       customer_id,
       discount_amount,
       service_charge,
       tax_amount,
-      order_type_id // <--- ADDED order_type_id
+      order_type_id,
+      order_status // The integer foreign key for order_status
     } = orderData;
 
     // Generate SET clause dynamically based on provided fields
@@ -312,6 +329,7 @@ class Order {
       paramIndex++;
     }
 
+    // Handle both 'status' (varchar) and 'order_status' (int FK) separately
     if (status !== undefined) {
       updates.push(`status = $${paramIndex}`);
       values.push(status);
@@ -354,9 +372,15 @@ class Order {
       paramIndex++;
     }
 
-    if (order_type_id !== undefined) { // <--- ADDED update for order_type_id
+    if (order_type_id !== undefined) {
       updates.push(`order_type_id = $${paramIndex}`);
       values.push(order_type_id);
+      paramIndex++;
+    }
+
+    if (order_status !== undefined) { // NEW: update for order_status (integer FK)
+      updates.push(`order_status = $${paramIndex}`);
+      values.push(order_status);
       paramIndex++;
     }
 
@@ -387,6 +411,26 @@ class Order {
   }
 
   static async findByStatus(status) {
+    // This method currently queries the varchar 'status' column.
+    // If you want to use the new 'order_status' (integer FK) for querying,
+    // you'll need to join with order_status table to find the ID by name.
+    // Example:
+    /*
+    const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
+    const { rows: statusRows } = await db.query(getStatusIdQuery, [status]);
+    if (statusRows.length === 0) {
+      return []; // No matching status name
+    }
+    const statusId = statusRows[0].id;
+    const query = `
+        SELECT o.*, os.name AS order_status_name
+        FROM orders o
+        JOIN order_status os ON o.order_status = os.id
+        WHERE o.order_status = $1
+        ORDER BY o.created_at DESC`;
+    const { rows } = await db.query(query, [statusId]);
+    */
+    // For now, keeping original logic for the 'status' varchar column:
     const query = 'SELECT * FROM orders WHERE status = $1 ORDER BY created_at DESC';
     const { rows } = await db.query(query, [status]);
     return rows;
@@ -402,7 +446,8 @@ class Order {
     const query = `
       SELECT
         o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') updated_at, o.customer_id,
-        o.order_type_id, ot.name AS order_type_name, -- ADDED order_type_id and order_type_name
+        o.order_type_id, ot.name AS order_type_name,
+        o.order_status as order_status_id, os.name AS order_status_name, -- ADDED order_status_id and order_status_name
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -430,9 +475,10 @@ class Order {
       LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
       LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
-      LEFT JOIN order_type ot ON o.order_type_id = ot.id -- ADDED JOIN for order_type
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id
+      LEFT JOIN order_status os ON o.order_status = os.id -- ADDED JOIN for order_status
       WHERE o.is_open = true AND o.cashier_session_id = $1
-      GROUP BY o.id, c.name, ot.name -- ADDED ot.name to GROUP BY
+      GROUP BY o.id, c.name, ot.name, os.name -- ADDED os.name to GROUP BY
       ORDER BY o.created_at DESC;
     `;
     const { rows } = await db.query(query, [session_id]);
