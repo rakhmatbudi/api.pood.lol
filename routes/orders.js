@@ -35,7 +35,11 @@ router.post('/:orderId/items', orderController.addOrderItem);
 //  "kitchen_printed": false // Whether it has been printed in the kitchen (optional, defaults to false)
 //}
 
-// New route to get all orders grouped by cashier session, sorted by time descending
+// Route for PUT updating an order item's status
+router.put('/:orderId/items/:itemId/status', orderController.updateOrderItemStatus);
+
+// Route to get all orders grouped by cashier session, sorted by time descending
 router.get('/grouped/sessions/desc', orderController.getAllOrdersGroupedBySessionDescending);
+
 
 module.exports = router;

@@ -48,6 +48,49 @@ class OrderItem {
     const { rows } = await db.query(query, [orderId]);
     return rows;
   }
+
+  // NEW METHOD: Update an existing order item by its ID
+  static async update(id, updateFields) {
+    // Dynamically build the SET clause for the SQL query
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    for (const key in updateFields) {
+      if (Object.hasOwnProperty.call(updateFields, key)) {
+        setClauses.push(`${key} = $${paramIndex}`);
+        values.push(updateFields[key]);
+        paramIndex++;
+      }
+    }
+
+    if (setClauses.length === 0) {
+      return null; // No fields to update
+    }
+
+    const query = `
+      UPDATE order_items
+      SET ${setClauses.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *;
+    `;
+    values.push(id); // Add the ID to the values array last
+
+    try {
+      const { rows } = await db.query(query, values);
+      return rows[0] || null; // Return the updated row or null if not found
+    } catch (error) {
+      console.error('Error updating order item:', error);
+      throw error; // Re-throw to be caught by the controller
+    }
+  }
+
+  // You also need a findById method for checking if item exists before updating its status
+  static async findById(id) {
+    const query = 'SELECT * FROM order_items WHERE id = $1';
+    const { rows } = await db.query(query, [id]);
+    return rows[0] || null; // Return the first row or null if not found
+  }
 }
 
 module.exports = OrderItem;

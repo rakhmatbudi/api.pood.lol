@@ -60,7 +60,7 @@ exports.createOrder = async (req, res) => {
       server_id: req.body.server_id,
       customer_id: req.body.customer_id,
       cashier_session_id: req.body.cashier_session_id,
-      order_type_id: req.body.order_type_id, // <--- ADDED THIS LINE
+      order_type_id: req.body.order_type_id,
     };
     const newOrder = await Order.create(newOrderData);
     res.status(201).json({ status: 'success', data: newOrder });
@@ -198,7 +198,7 @@ exports.addOrderItem = async (req, res) => {
     const newOrderItem = await OrderItem.create(orderItemData);
 
     // Recalculate the total amount for the order
-    const orderItems = await OrderItem.findAllByOrderId(orderId); // You'll need to create this model method
+    const orderItems = await OrderItem.findAllByOrderId(orderId);
     let newTotalAmount = 0;
     if (orderItems && orderItems.length > 0) {
       newTotalAmount = orderItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
@@ -211,5 +211,62 @@ exports.addOrderItem = async (req, res) => {
   } catch (error) {
     console.error('Error adding order item and updating total:', error);
     res.status(500).json({ status: 'error', message: 'Failed to add order item and update total' });
+  }
+};
+
+exports.updateOrderItemStatus = async (req, res) => {
+  console.log("updating order item");
+  const { orderId, itemId } = req.params;
+  const { status } = req.body; // Expecting only 'status' in the request body
+
+  try {
+    // 1. Validate the new status
+    // Define your allowed statuses for an order item here
+    const allowedStatuses = ['new', 'preparing', 'ready', 'served', 'cancelled', 'returned'];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Invalid status provided. Status must be one of: ${allowedStatuses.join(', ')}`
+      });
+    }
+
+    // 2. Verify the order exists (optional but good practice to ensure integrity)
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ status: 'error', message: 'Order not found' });
+    }
+
+    // 3. Update only the status of the order item
+    // The OrderItem.update method should be capable of partial updates
+    const updatedOrderItem = await OrderItem.update(itemId, { status });
+
+    if (!updatedOrderItem) {
+      return res.status(404).json({ status: 'error', message: 'Order item not found or status is the same' });
+    }
+
+    // 4. Optionally, recalculate total amount if status changes affect pricing (e.g., 'cancelled' items don't count)
+    // For a status-only update, typically total_amount wouldn't change unless your business logic dictates
+    // that certain statuses (like 'cancelled') remove the item's cost from the order total.
+    // If that's the case, uncomment and adjust the following block:
+    /*
+    const orderItems = await OrderItem.findAllByOrderId(orderId);
+    let newTotalAmount = 0;
+    if (orderItems && orderItems.length > 0) {
+      newTotalAmount = orderItems.reduce((sum, item) => {
+        // Only sum if item status is NOT 'cancelled' or similar
+        return item.status !== 'cancelled' ? sum + parseFloat(item.total_price || 0) : sum;
+      }, 0);
+    }
+    await Order.update(orderId, { total_amount: newTotalAmount });
+    */
+
+    res.status(200).json({
+      status: 'success',
+      data: updatedOrderItem,
+      message: `Order item ${itemId} status updated to '${status}' successfully.`
+    });
+  } catch (error) {
+    console.error(`Error updating status for order item ${itemId} in order ${orderId}:`, error);
+    res.status(500).json({ status: 'error', message: 'Failed to update order item status' });
   }
 };
