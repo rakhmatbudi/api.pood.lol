@@ -23,6 +23,7 @@ const discountRoutes = require('./routes/discounts');
 const roundingRoutes = require('./routes/roundings');
 const customerRoutes = require('./routes/customers');
 const orderTypeRoutes = require('./routes/orderTypes');
+const orderStatusesRoutes = require('./routes/orderStatuses');
 
 
 const app = express();
@@ -52,6 +53,8 @@ app.use('/discounts', discountRoutes);
 app.use('/roundings', roundingRoutes); 
 app.use('/customers', customerRoutes); 
 app.use('/order-types', orderTypeRoutes);
+app.use('/order-statuses', orderStatusesRoutes); 
+
 
 // Root route
 app.get('/', (req, res) => {
