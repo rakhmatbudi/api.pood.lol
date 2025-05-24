@@ -226,16 +226,16 @@ class Order {
   static async create(orderData) {
       const { table_number, server_id, customer_id, cashier_session_id, order_type_id } = orderData;
       let { order_status } = orderData; // Use 'let' so it can be reassigned
-    
+      
       // If order_status is null or undefined, default it to 1
       if (order_status === null || order_status === undefined) {
         order_status = 1;
       }
-    
+      
       // Initially, the subtotal is 0 as no items are added yet.
       const initialSubtotal = 0;
       const serviceCharge = await this.calculateServiceChargeForSubtotal(initialSubtotal);
-    
+      
       const query = `
         INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, order_type_id, status, is_open, total_amount, created_at, updated_at, service_charge, order_status)
         VALUES ($1, $2, $3, $4, $5, DEFAULT, DEFAULT, $6, DEFAULT, DEFAULT, $7, $8)
@@ -484,6 +484,85 @@ class Order {
     const { rows } = await db.query(query, [session_id]);
     return rows;
   }
+
+  /**
+   * Retrieves all orders for a given cashier session ID,
+   * including associated order items, order type, order status,
+   * and customer name.
+   *
+   * @param {number} sessionId - The ID of the cashier session.
+   * @returns {Promise<Array>} A promise that resolves to an array of order objects.
+   */
+  static async getOrdersBySessionId(sessionId) {
+    try {
+      const query = `
+        SELECT
+            o.id,
+            o.table_number,
+            o.server_id,
+            o.cashier_session_id,
+            o.status,
+            o.is_open,
+            o.total_amount,
+            o.discount_amount,
+            o.service_charge,
+            o.tax_amount,
+            (o.total_amount + o.service_charge + o.tax_amount - o.discount_amount) AS final_amount,
+            TO_CHAR(o.created_at, 'HH24:MI') AS created_at,
+            TO_CHAR(o.updated_at, 'HH24:MI') AS update_at, -- Note: response uses 'update_at'
+            o.customer_id,
+            ot.id AS order_type_id,
+            ot.name AS order_type_name,
+            os.id AS order_status_id,
+            os.name AS order_status_name,
+            c.name AS customer_name,
+            COALESCE(
+                (
+                    SELECT JSON_AGG(
+                        JSON_BUILD_OBJECT(
+                            'id', oi.id,
+                            'order_id', oi.order_id,
+                            'menu_item_id', oi.menu_item_id,
+                            'menu_item_name', mi.name,
+                            'variant_id', oi.variant_id,
+                            'variant_name', miv.name, -- Changed from v.name to miv.name based on other queries
+                            'quantity', oi.quantity,
+                            'unit_price', oi.unit_price,
+                            'total_price', oi.total_price,
+                            'notes', oi.notes,
+                            'status', oi.status,
+                            'kitchen_printed', oi.kitchen_printed,
+                            'created_at', TO_CHAR(oi.created_at, 'HH24:MI'),
+                            'updated_at', TO_CHAR(oi.updated_at, 'HH24:MI')
+                        )
+                    )
+                    FROM order_items oi
+                    LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+                    LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Changed from variants v to menu_item_variants miv
+                    WHERE oi.order_id = o.id
+                ),
+                '[]'::json -- Return an empty array if no order items
+            ) AS order_items
+        FROM
+            orders o
+        JOIN
+            order_type ot ON o.order_type_id = ot.id -- Changed from order_types to order_type
+        JOIN
+            order_status os ON o.order_status = os.id -- Assuming order_status column in orders table stores the ID
+        LEFT JOIN
+            customer c ON o.customer_id = c.id -- Changed from customers to customer
+        WHERE
+            o.cashier_session_id = $1
+        ORDER BY
+            o.created_at DESC; -- Order by creation date, newest first
+      `;
+      const { rows } = await db.query(query, [sessionId]);
+      return rows;
+    } catch (error) {
+      console.error('Error fetching orders by session ID:', error);
+      throw error; // Re-throw the error for the route handler to catch
+    }
+  }
 }
 
-module.exports = Order;
+module.exports = Order;

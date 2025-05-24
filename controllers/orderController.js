@@ -61,6 +61,8 @@ exports.createOrder = async (req, res) => {
       customer_id: req.body.customer_id,
       cashier_session_id: req.body.cashier_session_id,
       order_type_id: req.body.order_type_id,
+      // order_status will be defaulted in the model if not provided
+      order_status: req.body.order_status // Include order_status from request body
     };
     const newOrder = await Order.create(newOrderData);
     res.status(201).json({ status: 'success', data: newOrder });
@@ -292,4 +294,35 @@ exports.updateOrderItemStatus = async (req, res) => {
     console.error(`Error updating status for order item ${itemId} in order ${orderId}:`, error);
     res.status(500).json({ status: 'error', message: 'Failed to update order item status' });
   }
-};
+};
+
+// --- New Controller Method for /orders/sessions/:sessionId ---
+exports.getOrdersBySessionId = async (req, res) => {
+  const { sessionId } = req.params;
+
+  // Basic validation for sessionId
+  if (isNaN(sessionId) || parseInt(sessionId) <= 0) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid session ID provided. Session ID must be a positive integer.'
+    });
+  }
+
+  try {
+    // Call the static method from the Order model to fetch data
+    const orders = await Order.getOrdersBySessionId(parseInt(sessionId));
+
+    res.status(200).json({
+      status: 'success',
+      count: orders.length,
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error in getOrdersBySessionId controller:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while fetching orders for the session.',
+      details: error.message // Provide error message for debugging
+    });
+  }
+};
