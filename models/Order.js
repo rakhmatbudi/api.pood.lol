@@ -247,48 +247,48 @@ class Order {
   }
 
   static async updateOrderStatus(orderId, status) {
-    const client = await db.connect(); // Use a client for transactions
-    try {
-      await client.query('BEGIN'); // Start transaction
-
-      // Find the ID of the new status from the order_status table
-      const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
-      const { rows: statusRows } = await client.query(getStatusIdQuery, [status]);
-      if (statusRows.length === 0) {
-        throw new Error(`Invalid status name: ${status}`);
-      }
-      const newStatusId = statusRows[0].id;
-
-      const query = `
-        UPDATE orders
-        SET status = $1, order_status = $2, updated_at = NOW() -- UPDATED: set both varchar status and int foreign key
-        WHERE id = $3
-        RETURNING *
-      `;
-      const { rows } = await client.query(query, [status, newStatusId, orderId]);
-      const updatedOrder = rows[0];
-
-      if (updatedOrder && status === 'cancelled') {
-        // Cascade update to order items if order is cancelled
-        const updateItemsQuery = `
-          UPDATE order_items
-          SET status = 'cancelled', updated_at = NOW()
-          WHERE order_id = $1
+      const client = await db.connect(); // Use a client for transactions
+      try {
+        await client.query('BEGIN'); // Start transaction
+    
+        // Find the ID of the new status from the order_status table
+        const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
+        const { rows: statusRows } = await client.query(getStatusIdQuery, [status]);
+        if (statusRows.length === 0) {
+          throw new Error(`Invalid status name: ${status}`);
+        }
+        const newStatusId = statusRows[0].id;
+    
+        const query = `
+          UPDATE orders
+          SET status = $1, order_status = $2, updated_at = NOW() -- UPDATED: set both varchar status and int foreign key
+          WHERE id = $3
           RETURNING *
         `;
-        await client.query(updateItemsQuery, [orderId]);
+        const { rows } = await client.query(query, [status, newStatusId, orderId]);
+        const updatedOrder = rows[0];
+    
+        // THIS IS THE CRITICAL PART: Cascading update to order items
+        if (updatedOrder && status === 'cancelled') {
+          const updateItemsQuery = `
+            UPDATE order_items
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE order_id = $1
+            RETURNING *
+          `;
+          await client.query(updateItemsQuery, [orderId]);
+        }
+    
+        await client.query('COMMIT'); // Commit transaction
+        return updatedOrder;
+      } catch (error) {
+        await client.query('ROLLBACK'); // Rollback on error
+        console.error('Error updating order status and cascading:', error);
+        throw error;
+      } finally {
+        client.release(); // Release client back to the pool
       }
-
-      await client.query('COMMIT'); // Commit transaction
-      return updatedOrder;
-    } catch (error) {
-      await client.query('ROLLBACK'); // Rollback on error
-      console.error('Error updating order status and cascading:', error);
-      throw error;
-    } finally {
-      client.release(); // Release client back to the pool
     }
-  }
 
   static async update(id, orderData) {
     const {
