@@ -1,6 +1,9 @@
+// routes/cashierSession.js
+
 const express = require('express');
 const router = express.Router();
 const cashierSessionController = require('../controllers/cashierSessionController');
+
 
 // Get all cashier sessions with pagination
 router.get('/', cashierSessionController.getAllSessions);
@@ -13,6 +16,9 @@ router.post('/open', cashierSessionController.openSession);
 
 // Get a specific cashier session by ID
 router.get('/:id', cashierSessionController.getSessionById);
+
+// withdraw or deposit money to cashier
+router.post('/:sessionId/transaction', cashierSessionController.handleCashTransaction);
 
 // Close an existing cashier session
 router.put('/:id/close', cashierSessionController.closeSession);

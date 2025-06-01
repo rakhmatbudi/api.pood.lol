@@ -1,6 +1,9 @@
+// controller/cashierSessionController.js
+
 const db = require('../config/db'); // Import your PostgreSQL connection pool
 const CashierSession = require('../models/CashierSession');
-const CashierSessionPayment = require('../models/CashierSessionPayment'); // Ensure this is properly imported
+const CashierSessionPayment = require('../models/CashierSessionPayment'); 
+const CashierSessionTransaction = require('../models/CashierSessionTransaction'); 
 const PaymentMode = require('../models/PaymentMode');
 
 /**
@@ -110,6 +113,65 @@ const openSession = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : {}
     });
   }
+};
+
+/**
+ * Handle deposit or withdrawal for a cashier session
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ */
+const handleCashTransaction = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const { type, amount, description } = req.body; // type: 'deposit' or 'withdrawal'
+
+        // Validate required fields
+        if (!type || !amount || !['deposit', 'withdrawal'].includes(type)) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Transaction type (deposit/withdrawal) and amount are required'
+            });
+        }
+
+        const parsedAmount = parseFloat(amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Amount must be a positive number'
+            });
+        }
+
+        // Check if session exists and is open
+        const existingSession = await CashierSession.getById(sessionId);
+        if (!existingSession) {
+            return res.status(404).json({ status: 'error', message: 'Cashier session not found' });
+        }
+        if (existingSession.closed_at) {
+            return res.status(400).json({ status: 'error', message: 'Cashier session is already closed' });
+        }
+
+        // Create the transaction record
+        const transaction = await CashierSessionTransaction.create({
+            cashier_session_id: sessionId,
+            type,
+            amount: parsedAmount,
+            description
+        });
+
+        res.status(201).json({
+            status: 'success',
+            message: `Cashier session ${type} recorded successfully`,
+            data: transaction
+        });
+
+    } catch (error) {
+        console.error(`Error handling cash transaction:`, error);
+        res.status(500).json({
+            status: 'error',
+            message: `Failed to record cash transaction`,
+            error: process.env.NODE_ENV === 'development' ? error.message : {}
+        });
+    }
 };
 
 /**
@@ -418,6 +480,7 @@ module.exports = {
   closeSession,
   getCurrentUserSession,
   getCurrentSession,
-  getPaymentsGroupedByMode, // Export the new controller function
+  getPaymentsGroupedByMode, 
+  handleCashTransaction,
   createPayment
 };

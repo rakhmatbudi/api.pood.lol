@@ -6,9 +6,9 @@ class Order {
   static async findAll() {
     const query = `
       SELECT
-        o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') update_at, o.customer_id,
+        o.id, o.table_number, o.server_id, o.cashier_session_id, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') update_at, o.customer_id,
         o.order_type_id, ot.name AS order_type_name,
-        o.order_status as order_status_id, os.name AS order_status_name, -- ADDED order_status_id and order_status_name
+        o.order_status as order_status_id, os.name AS order_status_name,
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -25,7 +25,7 @@ class Order {
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
             'notes', oi.notes,
-            'status', oi.status,
+            'status', oi.status, -- Note: OrderItem still has a 'status' column
             'kitchen_printed', oi.kitchen_printed,
             'created_at', TO_CHAR(oi.created_at, 'HH24:MI'),
             'updated_at', TO_CHAR(oi.updated_at, 'HH24:MI')
@@ -37,8 +37,8 @@ class Order {
       LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
       LEFT JOIN order_type ot ON o.order_type_id = ot.id
-      LEFT JOIN order_status os ON o.order_status = os.id -- ADDED JOIN for order_status
-      GROUP BY o.id, c.name, ot.name, os.name -- ADDED os.name to GROUP BY
+      LEFT JOIN order_status os ON o.order_status = os.id
+      GROUP BY o.id, c.name, ot.name, os.name
       ORDER BY o.created_at DESC;
     `;
     const { rows } = await db.query(query);
@@ -48,9 +48,9 @@ class Order {
   static async findById(id) {
     const query = `
       SELECT
-        o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, o.created_at, o.updated_at, o.customer_id,
+        o.id, o.table_number, o.server_id, o.cashier_session_id, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, o.created_at, o.updated_at, o.customer_id,
         o.order_type_id, ot.name AS order_type_name,
-        o.order_status as order_status_id, os.name AS order_status_name, -- ADDED order_status_id and order_status_name
+        o.order_status as order_status_id, os.name AS order_status_name,
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -67,7 +67,7 @@ class Order {
             'unit_price', oi.unit_price,
             'total_price', oi.total_price,
             'notes', oi.notes,
-            'status', oi.status,
+            'status', oi.status, -- Note: OrderItem still has a 'status' column
             'kitchen_printed', oi.kitchen_printed,
             'created_at', oi.created_at,
             'updated_at', oi.updated_at
@@ -79,9 +79,9 @@ class Order {
       LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
       LEFT JOIN order_type ot ON o.order_type_id = ot.id
-      LEFT JOIN order_status os ON o.order_status = os.id -- ADDED JOIN for order_status
+      LEFT JOIN order_status os ON o.order_status = os.id
       WHERE o.id = $1
-      GROUP BY o.id, c.name, ot.name, os.name; -- ADDED os.name to GROUP BY
+      GROUP BY o.id, c.name, ot.name, os.name;
     `;
     const { rows } = await db.query(query, [id]);
     return rows[0];
@@ -96,14 +96,14 @@ class Order {
             'id', id,
             'table_number', table_number,
             'server_id', server_id,
-            'status', status,
+            -- 'status', status, -- REMOVED
             'is_open', is_open,
             'total_amount', total_amount,
             'created_at', created_at,
             'updated_at', updated_at,
             'customer_id', customer_id,
             'order_type_id', order_type_id,
-            'order_status_id', order_status -- ADDED order_status_id
+            'order_status_id', order_status
           )
           ORDER BY created_at DESC
         ) AS orders
@@ -155,7 +155,7 @@ class Order {
       const serviceChargeTax = await this.getServiceChargeTaxRate();
       const salesTaxRate = await this.getSalesTaxRate();
       if (!salesTaxRate) {
-        return 0; // No service charge tax defined
+        return 0; // No sales tax defined
       }
       return (subtotal + subtotal * (parseFloat(serviceChargeTax.amount) / 100)) * (parseFloat(salesTaxRate.amount) / 100);
     } catch (error) {
@@ -164,6 +164,8 @@ class Order {
     }
   }
 
+  // This method is now redundant if serviceCharge is part of updateOrderTotalServiceChargeAndTax
+  // You might consider removing this if it's not used elsewhere.
   static async updateOrderTotalAndServiceCharge(orderId) {
     try {
       const orderItems = await OrderItem.findAllByOrderId(orderId);
@@ -199,6 +201,8 @@ class Order {
       const subtotal = orderItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
       const serviceCharge = await this.calculateServiceCharge(orderId);
       const taxAmount = await this.calculateTaxAmount(orderId);
+      // Removed discount_amount from calculation here, as it's not present in params.
+      // If discount is to be factored in, it should be retrieved or passed.
       const totalAmount = subtotal + serviceCharge + taxAmount;
 
       const query = `
@@ -224,78 +228,82 @@ class Order {
   }
 
   static async create(orderData) {
-      const { table_number, server_id, customer_id, cashier_session_id, order_type_id } = orderData;
-      let { order_status } = orderData; // Use 'let' so it can be reassigned
-      
-      // If order_status is null or undefined, default it to 1
-      if (order_status === null || order_status === undefined) {
-        order_status = 1;
-      }
-      
-      // Initially, the subtotal is 0 as no items are added yet.
-      const initialSubtotal = 0;
-      const serviceCharge = await this.calculateServiceChargeForSubtotal(initialSubtotal);
-      
-      const query = `
-        INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, order_type_id, status, is_open, total_amount, created_at, updated_at, service_charge, order_status)
-        VALUES ($1, $2, $3, $4, $5, DEFAULT, DEFAULT, $6, DEFAULT, DEFAULT, $7, $8)
-        RETURNING *
-      `;
-      const values = [table_number, server_id, customer_id, cashier_session_id, order_type_id, initialSubtotal + serviceCharge, serviceCharge, order_status];
-      const { rows } = await db.query(query, values);
-      return rows[0];
+    const { table_number, server_id, customer_id, cashier_session_id, order_type_id } = orderData;
+    let { order_status } = orderData;
+
+    // If order_status is null or undefined, default it to 1 (e.g., 'pending' or 'open')
+    if (order_status === null || order_status === undefined) {
+      order_status = 1;
+    }
+
+    const initialSubtotal = 0;
+    const serviceCharge = await this.calculateServiceChargeForSubtotal(initialSubtotal);
+    // Note: total_amount is calculated as initialSubtotal + serviceCharge for a new order.
+    // tax_amount and discount_amount start at 0.
+    const query = `
+      INSERT INTO orders (table_number, server_id, customer_id, cashier_session_id, order_type_id, is_open, total_amount, service_charge, tax_amount, discount_amount, created_at, updated_at, order_status)
+      VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7, 0, 0, DEFAULT, DEFAULT, $8)
+      RETURNING *
+    `;
+    const values = [table_number, server_id, customer_id, cashier_session_id, order_type_id, initialSubtotal + serviceCharge, serviceCharge, order_status];
+    const { rows } = await db.query(query, values);
+    return rows[0];
   }
 
-  static async updateOrderStatus(orderId, status) {
-      const client = await db.connect(); // Use a client for transactions
-      try {
-        await client.query('BEGIN'); // Start transaction
-    
-        // Find the ID of the new status from the order_status table
-        const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
-        const { rows: statusRows } = await client.query(getStatusIdQuery, [status]);
-        if (statusRows.length === 0) {
-          throw new Error(`Invalid status name: ${status}`);
-        }
-        const newStatusId = statusRows[0].id;
-    
-        const query = `
-          UPDATE orders
-          SET status = $1, order_status = $2, updated_at = NOW() -- UPDATED: set both varchar status and int foreign key
-          WHERE id = $3
+  static async updateOrderStatus(orderId, statusName) { // Renamed 'status' to 'statusName' for clarity
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Find the ID of the new status from the order_status table
+      const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
+      const { rows: statusRows } = await client.query(getStatusIdQuery, [statusName]);
+      if (statusRows.length === 0) {
+        throw new Error(`Invalid status name: ${statusName}`);
+      }
+      const newStatusId = statusRows[0].id;
+
+      // Determine new is_open status based on statusName
+      const newIsOpen = !(['closed', 'cancelled'].includes(statusName.toLowerCase()));
+
+      const query = `
+        UPDATE orders
+        SET order_status = $1, is_open = $2, updated_at = NOW()
+        WHERE id = $3
+        RETURNING *
+      `;
+      const { rows } = await client.query(query, [newStatusId, newIsOpen, orderId]);
+      const updatedOrder = rows[0];
+
+      // THIS IS THE CRITICAL PART: Cascading update to order items
+      if (updatedOrder && (statusName.toLowerCase() === 'cancelled' || statusName.toLowerCase() === 'closed')) {
+        const updateItemsQuery = `
+          UPDATE order_items
+          SET status = $1, updated_at = NOW() -- Assuming order_items still has a 'status' varchar column
+          WHERE order_id = $2
           RETURNING *
         `;
-        const { rows } = await client.query(query, [status, newStatusId, orderId]);
-        const updatedOrder = rows[0];
-    
-        // THIS IS THE CRITICAL PART: Cascading update to order items
-        if (updatedOrder && status === 'cancelled') {
-          const updateItemsQuery = `
-            UPDATE order_items
-            SET status = 'cancelled', updated_at = NOW()
-            WHERE order_id = $1
-            RETURNING *
-          `;
-          await client.query(updateItemsQuery, [orderId]);
-        }
-    
-        await client.query('COMMIT'); // Commit transaction
-        return updatedOrder;
-      } catch (error) {
-        await client.query('ROLLBACK'); // Rollback on error
-        console.error('Error updating order status and cascading:', error);
-        throw error;
-      } finally {
-        client.release(); // Release client back to the pool
+        // Pass the name of the status to order_items status column
+        await client.query(updateItemsQuery, [statusName.toLowerCase(), orderId]);
       }
+
+      await client.query('COMMIT');
+      return updatedOrder;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error updating order status and cascading:', error);
+      throw error;
+    } finally {
+      client.release();
     }
+  }
 
   static async update(id, orderData) {
     const {
       table_number,
       server_id,
       cashier_session_id,
-      status, // The varchar status
+      // status, // REMOVED: No longer updating varchar status
       is_open,
       total_amount,
       customer_id,
@@ -306,7 +314,6 @@ class Order {
       order_status // The integer foreign key for order_status
     } = orderData;
 
-    // Generate SET clause dynamically based on provided fields
     const updates = [];
     const values = [];
     let paramIndex = 1;
@@ -329,12 +336,11 @@ class Order {
       paramIndex++;
     }
 
-    // Handle both 'status' (varchar) and 'order_status' (int FK) separately
-    if (status !== undefined) {
-      updates.push(`status = $${paramIndex}`);
-      values.push(status);
-      paramIndex++;
-    }
+    // if (status !== undefined) { // REMOVED
+    //   updates.push(`status = $${paramIndex}`);
+    //   values.push(status);
+    //   paramIndex++;
+    // }
 
     if (is_open !== undefined) {
       updates.push(`is_open = $${paramIndex}`);
@@ -378,18 +384,16 @@ class Order {
       paramIndex++;
     }
 
-    if (order_status !== undefined) { // NEW: update for order_status (integer FK)
+    if (order_status !== undefined) {
       updates.push(`order_status = $${paramIndex}`);
       values.push(order_status);
       paramIndex++;
     }
 
-    // Always update the updated_at timestamp
     updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    // If no fields to update (only updated_at would be updated)
     if (updates.length === 1 && updates[0].includes('updated_at')) {
-      return null;
+      return null; // No fields to update other than timestamp
     }
 
     const query = `
@@ -410,44 +414,18 @@ class Order {
     return rows[0];
   }
 
-  static async findByStatus(status) {
-    // This method currently queries the varchar 'status' column.
-    // If you want to use the new 'order_status' (integer FK) for querying,
-    // you'll need to join with order_status table to find the ID by name.
-    // Example:
-    /*
+  static async findByStatus(statusName) { // Changed 'status' to 'statusName' for clarity
+    // This method now queries the integer 'order_status' column by joining with order_status table
     const getStatusIdQuery = 'SELECT id FROM order_status WHERE name = $1';
-    const { rows: statusRows } = await db.query(getStatusIdQuery, [status]);
+    const { rows: statusRows } = await db.query(getStatusIdQuery, [statusName]);
     if (statusRows.length === 0) {
       return []; // No matching status name
     }
     const statusId = statusRows[0].id;
     const query = `
-        SELECT o.*, os.name AS order_status_name
-        FROM orders o
-        JOIN order_status os ON o.order_status = os.id
-        WHERE o.order_status = $1
-        ORDER BY o.created_at DESC`;
-    const { rows } = await db.query(query, [statusId]);
-    */
-    // For now, keeping original logic for the 'status' varchar column:
-    const query = 'SELECT * FROM orders WHERE status = $1 ORDER BY created_at DESC';
-    const { rows } = await db.query(query, [status]);
-    return rows;
-  }
-
-  static async findOpenOrders() {
-    const query = 'SELECT * FROM orders WHERE is_open = true ORDER BY created_at DESC';
-    const { rows } = await db.query(query);
-    return rows;
-  }
-
-  static async findOpenOrdersBySession(session_id) {
-    const query = `
-      SELECT
-        o.id, o.table_number, o.server_id, o.cashier_session_id, o.status, o.is_open, o.total_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') updated_at, o.customer_id,
+      SELECT o.id, o.table_number, o.server_id, o.cashier_session_id, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') update_at, o.customer_id,
         o.order_type_id, ot.name AS order_type_name,
-        o.order_status as order_status_id, os.name AS order_status_name, -- ADDED order_status_id and order_status_name
+        o.order_status as order_status_id, os.name AS order_status_name,
         CASE
           WHEN c.name IS NOT NULL THEN c.name
           ELSE NULL
@@ -476,9 +454,95 @@ class Order {
       LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
       LEFT JOIN customer c ON o.customer_id = c.id
       LEFT JOIN order_type ot ON o.order_type_id = ot.id
-      LEFT JOIN order_status os ON o.order_status = os.id -- ADDED JOIN for order_status
+      JOIN order_status os ON o.order_status = os.id -- Use JOIN since we filter by it
+      WHERE o.order_status = $1
+      GROUP BY o.id, c.name, ot.name, os.name
+      ORDER BY o.created_at DESC;
+    `;
+    const { rows } = await db.query(query, [statusId]);
+    return rows;
+  }
+
+  static async findOpenOrders() {
+    const query = `
+      SELECT
+        o.id, o.table_number, o.server_id, o.cashier_session_id, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') update_at, o.customer_id,
+        o.order_type_id, ot.name AS order_type_name,
+        o.order_status as order_status_id, os.name AS order_status_name,
+        CASE
+          WHEN c.name IS NOT NULL THEN c.name
+          ELSE NULL
+        END AS customer_name,
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'order_id', oi.order_id,
+            'menu_item_id', oi.menu_item_id,
+            'menu_item_name', mi.name,
+            'variant_id', oi.variant_id,
+            'variant_name', miv.name,
+            'quantity', oi.quantity,
+            'unit_price', oi.unit_price,
+            'total_price', oi.total_price,
+            'notes', oi.notes,
+            'status', oi.status,
+            'kitchen_printed', oi.kitchen_printed,
+            'created_at', TO_CHAR(oi.created_at, 'HH24:MI'),
+            'updated_at', TO_CHAR(oi.updated_at, 'HH24:MI')
+          )
+        ) AS order_items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
+      LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id
+      LEFT JOIN order_status os ON o.order_status = os.id
+      WHERE o.is_open = true
+      GROUP BY o.id, c.name, ot.name, os.name
+      ORDER BY o.created_at DESC;
+    `;
+    const { rows } = await db.query(query);
+    return rows;
+  }
+
+  static async findOpenOrdersBySession(session_id) {
+    const query = `
+      SELECT
+        o.id, o.table_number, o.server_id, o.cashier_session_id, o.is_open, o.total_amount, o.discount_amount, o.service_charge, o.tax_amount, (o.total_amount+o.service_charge+o.tax_amount) as final_amount, TO_CHAR(o.created_at, 'HH24:MI') created_at, TO_CHAR(o.updated_at, 'HH24:MI') updated_at, o.customer_id,
+        o.order_type_id, ot.name AS order_type_name,
+        o.order_status as order_status_id, os.name AS order_status_name,
+        CASE
+          WHEN c.name IS NOT NULL THEN c.name
+          ELSE NULL
+        END AS customer_name,
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'order_id', oi.order_id,
+            'menu_item_id', oi.menu_item_id,
+            'menu_item_name', mi.name,
+            'variant_id', oi.variant_id,
+            'variant_name', miv.name,
+            'quantity', oi.quantity,
+            'unit_price', oi.unit_price,
+            'total_price', oi.total_price,
+            'notes', oi.notes,
+            'status', oi.status,
+            'kitchen_printed', oi.kitchen_printed,
+            'created_at', TO_CHAR(oi.created_at, 'HH24:MI'),
+            'updated_at', TO_CHAR(oi.updated_at, 'HH24:MI')
+          )
+        ) AS order_items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
+      LEFT JOIN customer c ON o.customer_id = c.id
+      LEFT JOIN order_type ot ON o.order_type_id = ot.id
+      LEFT JOIN order_status os ON o.order_status = os.id
       WHERE o.is_open = true AND o.cashier_session_id = $1
-      GROUP BY o.id, c.name, ot.name, os.name -- ADDED os.name to GROUP BY
+      GROUP BY o.id, c.name, ot.name, os.name
       ORDER BY o.created_at DESC;
     `;
     const { rows } = await db.query(query, [session_id]);
@@ -501,7 +565,7 @@ class Order {
             o.table_number,
             o.server_id,
             o.cashier_session_id,
-            o.status,
+            -- o.status, -- REMOVED
             o.is_open,
             o.total_amount,
             o.discount_amount,
@@ -509,7 +573,7 @@ class Order {
             o.tax_amount,
             (o.total_amount + o.service_charge + o.tax_amount - o.discount_amount) AS final_amount,
             TO_CHAR(o.created_at, 'HH24:MI') AS created_at,
-            TO_CHAR(o.updated_at, 'HH24:MI') AS update_at, -- Note: response uses 'update_at'
+            TO_CHAR(o.updated_at, 'HH24:MI') AS update_at,
             o.customer_id,
             ot.id AS order_type_id,
             ot.name AS order_type_name,
@@ -525,7 +589,7 @@ class Order {
                             'menu_item_id', oi.menu_item_id,
                             'menu_item_name', mi.name,
                             'variant_id', oi.variant_id,
-                            'variant_name', miv.name, -- Changed from v.name to miv.name based on other queries
+                            'variant_name', miv.name,
                             'quantity', oi.quantity,
                             'unit_price', oi.unit_price,
                             'total_price', oi.total_price,
@@ -538,31 +602,31 @@ class Order {
                     )
                     FROM order_items oi
                     LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
-                    LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id -- Changed from variants v to menu_item_variants miv
+                    LEFT JOIN menu_item_variants miv ON oi.variant_id = miv.id
                     WHERE oi.order_id = o.id
                 ),
-                '[]'::json -- Return an empty array if no order items
+                '[]'::json
             ) AS order_items
         FROM
             orders o
         JOIN
-            order_type ot ON o.order_type_id = ot.id -- Changed from order_types to order_type
+            order_type ot ON o.order_type_id = ot.id
         JOIN
-            order_status os ON o.order_status = os.id -- Assuming order_status column in orders table stores the ID
+            order_status os ON o.order_status = os.id
         LEFT JOIN
-            customer c ON o.customer_id = c.id -- Changed from customers to customer
+            customer c ON o.customer_id = c.id
         WHERE
             o.cashier_session_id = $1
         ORDER BY
-            o.created_at DESC; -- Order by creation date, newest first
+            o.created_at DESC;
       `;
       const { rows } = await db.query(query, [sessionId]);
       return rows;
     } catch (error) {
       console.error('Error fetching orders by session ID:', error);
-      throw error; // Re-throw the error for the route handler to catch
+      throw error;
     }
   }
 }
 
-module.exports = Order;
+module.exports = Order;
