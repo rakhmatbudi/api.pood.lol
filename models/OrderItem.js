@@ -47,52 +47,81 @@ class OrderItem {
   
   // Handle order total calculations directly here (no circular dependency)
   static async updateOrderTotals(orderId) {
-    try {
-      // Get all order items for this order
-      const orderItems = await this.findAllByOrderId(orderId);
-      
-      if (!orderItems || orderItems.length === 0) {
-        return null;
+      try {
+        // Get all order items for this order
+        const allOrderItems = await this.findAllByOrderId(orderId);
+        
+        if (!allOrderItems || allOrderItems.length === 0) {
+          return null;
+        }
+    
+        // ✅ FIX: Only include active (non-cancelled) items in calculations
+        const activeItems = allOrderItems.filter(item => item.status !== 'cancelled');
+        
+        console.log(`Order ${orderId}: Total items: ${allOrderItems.length}, Active items: ${activeItems.length}`);
+        
+        if (activeItems.length === 0) {
+          // If no active items, set all totals to 0
+          const updateQuery = `
+            UPDATE orders
+            SET total_amount = 0, service_charge = 0, tax_amount = 0, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+          `;
+          const { rows } = await db.query(updateQuery, [orderId]);
+          console.log(`Order ${orderId} totals reset to 0 - no active items`);
+          return rows[0];
+        }
+    
+        // Calculate subtotal from ONLY active (non-cancelled) order items
+        const subtotal = activeItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
+        
+        // Get tax rates from database
+        const serviceChargeTax = await this.getServiceChargeTaxRate();
+        const salesTaxRate = await this.getSalesTaxRate();
+        
+        // Calculate service charge on subtotal (active items only)
+        const serviceChargeRate = serviceChargeTax ? parseFloat(serviceChargeTax.amount) / 100 : 0.10;
+        const serviceCharge = subtotal * serviceChargeRate;
+        
+        // Calculate tax on (subtotal + service charge)
+        const taxRate = salesTaxRate ? parseFloat(salesTaxRate.amount) / 100 : 0.08;
+        const taxableAmount = subtotal + serviceCharge;
+        const taxAmount = taxableAmount * taxRate;
+        
+        // Total amount is just the subtotal (for consistency with payment logic)
+        const totalAmount = subtotal;
+    
+        // Update the order with calculated totals
+        const updateQuery = `
+          UPDATE orders
+          SET total_amount = $1, service_charge = $2, tax_amount = $3, updated_at = NOW()
+          WHERE id = $4
+          RETURNING *
+        `;
+        
+        const { rows } = await db.query(updateQuery, [totalAmount, serviceCharge, taxAmount, orderId]);
+        
+        console.log(`Order ${orderId} totals updated:`);
+        console.log(`  - Active items subtotal: ${subtotal.toFixed(2)}`);
+        console.log(`  - Service charge: ${serviceCharge.toFixed(2)}`);
+        console.log(`  - Tax amount: ${taxAmount.toFixed(2)}`);
+        console.log(`  - Total amount (items only): ${totalAmount.toFixed(2)}`);
+        
+        // Log cancelled items for debugging
+        const cancelledItems = allOrderItems.filter(item => item.status === 'cancelled');
+        if (cancelledItems.length > 0) {
+          const cancelledValue = cancelledItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
+          console.log(`  - Cancelled items value (excluded): ${cancelledValue.toFixed(2)}`);
+        }
+        
+        return rows[0];
+        
+      } catch (error) {
+        console.error('Error updating order totals:', error);
+        throw error;
       }
-
-      // Calculate subtotal from all order items
-      const subtotal = orderItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
-      
-      // Get tax rates from database
-      const serviceChargeTax = await this.getServiceChargeTaxRate();
-      const salesTaxRate = await this.getSalesTaxRate();
-      
-      // Calculate service charge
-      const serviceChargeRate = serviceChargeTax ? parseFloat(serviceChargeTax.amount) / 100 : 0.10; // Default 10% if not found
-      const serviceCharge = subtotal * serviceChargeRate;
-      
-      // Calculate tax
-      const taxRate = salesTaxRate ? parseFloat(salesTaxRate.amount) / 100 : 0.08; // Default 8% if not found
-      const taxableAmount = subtotal + serviceCharge;
-      const taxAmount = taxableAmount * taxRate;
-      
-      // Calculate total
-      const totalAmount = subtotal + serviceCharge + taxAmount;
-
-      // Update the order with calculated totals
-      const updateQuery = `
-        UPDATE orders
-        SET total_amount = $1, service_charge = $2, tax_amount = $3, updated_at = NOW()
-        WHERE id = $4
-        RETURNING *
-      `;
-      
-      const { rows } = await db.query(updateQuery, [totalAmount, serviceCharge, taxAmount, orderId]);
-      
-      console.log(`Order ${orderId} totals updated - Subtotal: ${subtotal.toFixed(2)}, Service Charge: ${serviceCharge.toFixed(2)}, Tax: ${taxAmount.toFixed(2)}, Total: ${totalAmount.toFixed(2)}`);
-      
-      return rows[0];
-      
-    } catch (error) {
-      console.error('Error updating order totals:', error);
-      throw error;
     }
-  }
   
   // Get service charge tax rate from database
   static async getServiceChargeTaxRate() {
