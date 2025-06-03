@@ -116,6 +116,40 @@ const openSession = async (req, res) => {
 };
 
 /**
+ * Get all transactions for a specific cashier session
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ */
+const getSessionTransactions = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+
+        // First, verify if the cashier session exists
+        const session = await CashierSession.getById(sessionId);
+        if (!session) {
+            return res.status(404).json({ status: 'error', message: 'Cashier session not found.' });
+        }
+
+        const transactions = await CashierSessionTransaction.getBySessionId(sessionId);
+
+        res.json({
+            status: 'success',
+            sessionId: sessionId,
+            data: transactions,
+            message: 'Cashier session transactions retrieved successfully'
+        });
+
+    } catch (error) {
+        console.error('Error fetching cashier session transactions:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to retrieve cashier session transactions',
+            error: process.env.NODE_ENV === 'development' ? error.message : {}
+        });
+    }
+};
+
+/**
  * Handle deposit or withdrawal for a cashier session
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
@@ -482,5 +516,6 @@ module.exports = {
   getCurrentSession,
   getPaymentsGroupedByMode, 
   handleCashTransaction,
-  createPayment
+  createPayment,
+  getSessionTransactions 
 };

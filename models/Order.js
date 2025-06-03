@@ -299,120 +299,115 @@ class Order {
   }
 
   static async update(id, orderData) {
-    const {
-      table_number,
-      server_id,
-      cashier_session_id,
-      // status, // REMOVED: No longer updating varchar status
-      is_open,
-      total_amount,
-      customer_id,
-      discount_amount,
-      service_charge,
-      tax_amount,
-      order_type_id,
-      order_status // The integer foreign key for order_status
-    } = orderData;
-
-    const updates = [];
-    const values = [];
-    let paramIndex = 1;
-
-    if (table_number !== undefined) {
-      updates.push(`table_number = $${paramIndex}`);
-      values.push(table_number);
-      paramIndex++;
+      const {
+        table_number,
+        server_id,
+        cashier_session_id,
+        is_open,
+        total_amount,
+        customer_id,
+        discount_amount,
+        service_charge,
+        tax_amount,
+        charged_amount,        // ✅ ADD THIS LINE - this was missing!
+        order_type_id,
+        order_status
+      } = orderData;
+    
+      const updates = [];
+      const values = [];
+      let paramIndex = 1;
+    
+      if (table_number !== undefined) {
+        updates.push(`table_number = $${paramIndex}`);
+        values.push(table_number);
+        paramIndex++;
+      }
+    
+      if (server_id !== undefined) {
+        updates.push(`server_id = $${paramIndex}`);
+        values.push(server_id);
+        paramIndex++;
+      }
+    
+      if (cashier_session_id !== undefined) {
+        updates.push(`cashier_session_id = $${paramIndex}`);
+        values.push(cashier_session_id);
+        paramIndex++;
+      }
+    
+      if (is_open !== undefined) {
+        updates.push(`is_open = $${paramIndex}`);
+        values.push(is_open);
+        paramIndex++;
+      }
+    
+      if (total_amount !== undefined) {
+        updates.push(`total_amount = $${paramIndex}`);
+        values.push(total_amount);
+        paramIndex++;
+      }
+    
+      if (customer_id !== undefined) {
+        updates.push(`customer_id = $${paramIndex}`);
+        values.push(customer_id);
+        paramIndex++;
+      }
+    
+      if (discount_amount !== undefined) {
+        updates.push(`discount_amount = $${paramIndex}`);
+        values.push(discount_amount);
+        paramIndex++;
+      }
+    
+      if (service_charge !== undefined) {
+        updates.push(`service_charge = $${paramIndex}`);
+        values.push(service_charge);
+        paramIndex++;
+      }
+    
+      if (tax_amount !== undefined) {
+        updates.push(`tax_amount = $${paramIndex}`);
+        values.push(tax_amount);
+        paramIndex++;
+      }
+    
+      // ✅ ADD THIS BLOCK - this was missing!
+      if (charged_amount !== undefined) {
+        updates.push(`charged_amount = $${paramIndex}`);
+        values.push(charged_amount);
+        paramIndex++;
+      }
+    
+      if (order_type_id !== undefined) {
+        updates.push(`order_type_id = $${paramIndex}`);
+        values.push(order_type_id);
+        paramIndex++;
+      }
+    
+      if (order_status !== undefined) {
+        updates.push(`order_status = $${paramIndex}`);
+        values.push(order_status);
+        paramIndex++;
+      }
+    
+      updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+      if (updates.length === 1 && updates[0].includes('updated_at')) {
+        return null; // No fields to update other than timestamp
+      }
+    
+      const query = `
+        UPDATE orders
+        SET ${updates.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING *
+      `;
+    
+      values.push(id);
+      const { rows } = await db.query(query, values);
+      return rows[0];
     }
-
-    if (server_id !== undefined) {
-      updates.push(`server_id = $${paramIndex}`);
-      values.push(server_id);
-      paramIndex++;
-    }
-
-    if (cashier_session_id !== undefined) {
-      updates.push(`cashier_session_id = $${paramIndex}`);
-      values.push(cashier_session_id);
-      paramIndex++;
-    }
-
-    // if (status !== undefined) { // REMOVED
-    //   updates.push(`status = $${paramIndex}`);
-    //   values.push(status);
-    //   paramIndex++;
-    // }
-
-    if (is_open !== undefined) {
-      updates.push(`is_open = $${paramIndex}`);
-      values.push(is_open);
-      paramIndex++;
-    }
-
-    if (total_amount !== undefined) {
-      updates.push(`total_amount = $${paramIndex}`);
-      values.push(total_amount);
-      paramIndex++;
-    }
-
-    if (customer_id !== undefined) {
-      updates.push(`customer_id = $${paramIndex}`);
-      values.push(customer_id);
-      paramIndex++;
-    }
-
-    if (discount_amount !== undefined) {
-      updates.push(`discount_amount = $${paramIndex}`);
-      values.push(discount_amount);
-      paramIndex++;
-    }
-
-    if (service_charge !== undefined) {
-      updates.push(`service_charge = $${paramIndex}`);
-      values.push(service_charge);
-      paramIndex++;
-    }
-
-    if (tax_amount !== undefined) {
-      updates.push(`tax_amount = $${paramIndex}`);
-      values.push(tax_amount);
-      paramIndex++;
-    }
-
-    if (order_type_id !== undefined) {
-      updates.push(`order_type_id = $${paramIndex}`);
-      values.push(order_type_id);
-      paramIndex++;
-    }
-
-    if (order_status !== undefined) {
-      updates.push(`order_status = $${paramIndex}`);
-      values.push(order_status);
-      paramIndex++;
-    }
-
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
-
-    if (updates.length === 1 && updates[0].includes('updated_at')) {
-      return null; // No fields to update other than timestamp
-    }
-
-    const query = `
-      UPDATE orders
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `;
-
-    values.push(id);
-    const { rows } = await db.query(query, values);
-    return rows[0];
-  }
-
-  static async delete(id) {
-    const query = 'DELETE FROM orders WHERE id = $1 RETURNING *';
-    const { rows } = await db.query(query, [id]);
-    return rows[0];
-  }
 
   static async findByStatus(statusName) { // Changed 'status' to 'statusName' for clarity
     // This method now queries the integer 'order_status' column by joining with order_status table
