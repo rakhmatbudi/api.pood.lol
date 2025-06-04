@@ -1,3 +1,5 @@
+// services/DataSyncService.js
+
 const db = require('../config/db'); // Main database connection
 const db_serendipity = require('../config/db_serendipity'); // Source database connection
 const { v4: uuidv4 } = require('uuid');
@@ -8,9 +10,9 @@ class DataSyncService {
      * @param {string} sourceTable - The name of the table in the source database.
      * @param {string} destinationTable - The name of the table in the destination database.
      * @param {object} [options] - Additional options for the synchronization process.
-     * @param {object} [options.columnMapping] - An object mapping source column names to destination column names.  If not provided, assumes same names.
+     * @param {object} [options.columnMapping] - An object mapping source column names to destination column names. If not provided, assumes same names.
      * @param {string} [options.idField] - The primary key field in the destination table. Defaults to 'id'.
-     * @param {boolean} [options.useUuid] - Whether to use UUIDs for new records in the destination table.  Defaults to false.
+     * @param {boolean} [options.useUuid] - Whether to use UUIDs for new records in the destination table. Defaults to false.
      * @param {string[]} [options.includeColumns] - Specific columns to select from the source table. If not provided, selects all columns.
      * @returns {Promise<void>}
      */
@@ -34,7 +36,7 @@ class DataSyncService {
             }
 
             const { rows: sourceData } = await db_serendipity.query(sourceQuery);
-            console.log(`Workspaceed ${sourceData.length} records from ${sourceTable}.`);
+            console.log(`Processed ${sourceData.length} records from ${sourceTable}.`);
 
             // Debug - log the first record to see what we're working with
             if (sourceData.length > 0) {
@@ -62,15 +64,24 @@ class DataSyncService {
                 }
 
                 // Generate UUID if needed - make sure the ID field is always set
-                if (useUuid) {
-                    destinationRecord[idField] = destinationRecord[idField] || uuidv4();
+                // This logic is now inside the loop for each record
+                if (useUuid && !destinationRecord[idField]) { // Only generate if UUID is desired AND idField is not already populated by mapping
+                    destinationRecord[idField] = uuidv4();
                 }
+
 
                 // Debug - log what we're about to insert/update
                 console.log('Destination record to be processed:', destinationRecord);
 
-                // Skip processing if we don't have a valid ID
-                if (!destinationRecord[idField]) {
+                // Skip processing if we don't have a valid ID (especially for serial types where ID isn't mapped from source)
+                // For tables with serial PKs, `idField` shouldn't be mapped in `columnMapping`
+                // and `useUuid` should be false. The DB will assign the ID on insert.
+                // We'll proceed with insert if the ID is not explicitly set from source and not using UUID.
+                if (!destinationRecord[idField] && !useUuid && idField === 'id' && destinationTable !== 'promo_item') {
+                  // This condition handles cases where the ID is auto-generated in the destination
+                  // For promo_item, its ID is also serial, so we won't have it here.
+                  // We'll proceed to attempt an insert/update.
+                } else if (!destinationRecord[idField]) { // If ID is expected (mapped or UUID) but missing
                     console.error(`Error: Missing ID field (${idField}) for record:`, sourceRecord);
                     continue; // Skip this record and continue with the next
                 }
@@ -79,11 +90,15 @@ class DataSyncService {
                 const checkQuery = `SELECT ${idField} FROM ${destinationTable} WHERE ${idField} = $1`;
                 const checkValue = destinationRecord[idField];
 
-                console.log(`Checking if record exists with ${idField} = ${checkValue}`);
+                let existingRecords = { rows: [] };
+                // Only attempt to check existence if the idField has a value (i.e., not a new serial ID)
+                if (checkValue !== undefined && checkValue !== null) {
+                    console.log(`Checking if record exists with ${idField} = ${checkValue}`);
+                    existingRecords = await db.query(checkQuery, [checkValue]);
+                }
 
-                const { rows: existingRecords } = await db.query(checkQuery, [checkValue]);
 
-                if (existingRecords.length > 0) {
+                if (existingRecords.rows.length > 0) {
                     // 4a. Update the existing record.
                     const updateFields = Object.keys(destinationRecord).filter(key => key !== idField);
 
@@ -119,14 +134,27 @@ class DataSyncService {
                     }
                 } else {
                     // 4b. Insert the new record.
-                    const insertColumns = Object.keys(destinationRecord).join(', ');
-                    const insertValuesTemplate = Object.keys(destinationRecord).map((_, i) => `$${i + 1}`).join(', ');
-                    const insertValues = Object.values(destinationRecord);
+                    // Filter out the idField if it's a serial primary key and useUuid is false,
+                    // allowing the database to generate it.
+                    let insertColumns = Object.keys(destinationRecord);
+                    let insertValues = Object.values(destinationRecord);
+                    let insertValuesTemplate = Object.keys(destinationRecord).map((_, i) => `$${i + 1}`);
 
-                    // Add created_at and updated_at fields
+                    // Adjust for serial primary keys where ID is auto-generated
+                    if (!useUuid && idField === 'id' && (destinationTable === 'promo_item' || destinationTable === 'menu_item_variants')) {
+                      const idFieldIndex = insertColumns.indexOf(idField);
+                      if (idFieldIndex > -1) {
+                        insertColumns.splice(idFieldIndex, 1);
+                        insertValues.splice(idFieldIndex, 1);
+                        insertValuesTemplate.splice(idFieldIndex, 1);
+                        // Re-adjust parameter indices for the template
+                        insertValuesTemplate = insertValuesTemplate.map((_, i) => `$${i + 1}`);
+                      }
+                    }
+
                     const insertQuery = `
-                        INSERT INTO ${destinationTable} (${insertColumns}, created_at, updated_at)
-                        VALUES (${insertValuesTemplate}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        INSERT INTO ${destinationTable} (${insertColumns.join(', ')}, created_at, updated_at)
+                        VALUES (${insertValuesTemplate.join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         RETURNING *
                     `;
 
@@ -144,15 +172,15 @@ class DataSyncService {
             }
             console.log(`Synchronization of ${sourceTable} to ${destinationTable} complete.`);
         } catch (error) {
-             console.error(`Error synchronizing ${sourceTable} to ${destinationTable}:`, error);
-             throw error; // rethrow
+            console.error(`Error synchronizing ${sourceTable} to ${destinationTable}:`, error);
+            throw error; // rethrow
         }
     }
 
     /**
-      * Synchronizes item categories from komuni40_cafeserendipity.item_category to komuni40.menu_categories.
-      * @returns {Promise<void>}
-      */
+     * Synchronizes item categories from komuni40_cafeserendipity.item_category to komuni40.menu_categories.
+     * @returns {Promise<void>}
+     */
     static async syncItemCategories() {
         await DataSyncService.syncTable(
             'item_category',
@@ -168,7 +196,7 @@ class DataSyncService {
                     'item_category_description'
                     // Only select these columns from the source
                 ],
-                useUuid: true
+                useUuid: true // Assuming 'id' in menu_categories uses UUID
             }
         );
     }
@@ -189,9 +217,9 @@ class DataSyncService {
                   item_price: 'price',
                   is_active: 'is_active',
                   item_photo1: 'image_path',
-                  item_category: 'category_id'
+                  item_category: 'category_id' // Assuming this maps correctly
               },
-              useUuid: true
+              useUuid: true // Assuming 'id' in menu_items uses UUID
           }
       );
     }
@@ -206,20 +234,63 @@ class DataSyncService {
             'menu_item_variants',
             {
                 columnMapping: {
-                    variant_id: 'id',
-                    item_id: 'menu_item_id', // Assuming item_id in source maps to menu_item_id in destination
+                    variant_id: 'id', // Source variant_id to destination id
+                    item_id: 'menu_item_id',
                     variant_name: 'name',
                     variant_price: 'price',
                     is_active: 'is_active'
                 },
-                // The `id` column in menu_item_variants is `serial4`, so we don't use UUID here.
-                // We'll rely on the database to auto-generate it.
-                // If the source `variant_id` should be preserved as `id` in destination, then remove `useUuid: true`
-                // and ensure `idField: 'id'` is correctly set and the source `variant_id` is unique.
-                // For this scenario, where destination `id` is `serial4`, we let DB handle it.
-                // The `variant_id` from the source is still mapped to `id` in the destination record, but the `serial4`
-                // in the destination will take precedence if it's an insert.
-                // For updates, the `idField` check will work.
+                // idField: 'id' (default, explicitly for clarity)
+                // useUuid: false because destination 'id' is serial4
+            }
+        );
+    }
+
+    /**
+     * Synchronizes promos from `source_db.promo` to `destination_db.promo`.
+     * @returns {Promise<void>}
+     */
+    static async syncPromos() {
+        await DataSyncService.syncTable(
+            'promo', // Source table
+            'promo', // Destination table (assuming same name)
+            {
+                columnMapping: {
+                    promo_id: 'promo_id',
+                    promo_name: 'promo_name',
+                    promo_description: 'promo_description',
+                    start_date: 'start_date',
+                    end_date: 'end_date',
+                    term_and_condition: 'term_and_condition',
+                    picture: 'picture',
+                    type: 'type',
+                    discount_type: 'discount_type',
+                    discount_amount: 'discount_amount',
+                    is_active: 'is_active'
+                },
+                idField: 'promo_id', // Primary key for promos
+                useUuid: false // Assuming promo_id is serial in destination
+            }
+        );
+    }
+
+    /**
+     * Synchronizes promo items from `source_db.promo_item` to `destination_db.promo_item`.
+     * This must run AFTER syncPromos and syncMenuItems because of foreign key dependencies.
+     * @returns {Promise<void>}
+     */
+    static async syncPromoItems() {
+        await DataSyncService.syncTable(
+            'promo_item', // Source table
+            'promo_item', // Destination table (assuming same name)
+            {
+                columnMapping: {
+                    id: 'id', // Assuming 'id' is the primary key in both, and serial in destination
+                    promo_id: 'promo_id',
+                    item_id: 'item_id'
+                },
+                idField: 'id', // Primary key for promo_item
+                useUuid: false // 'id' in promo_item is serial4, let the DB handle it
             }
         );
     }
@@ -233,7 +304,9 @@ class DataSyncService {
             console.log('Starting full data synchronization...');
             await DataSyncService.syncItemCategories();
             await DataSyncService.syncMenuItems();
-            await DataSyncService.syncItemVariants(); // Add new sync
+            await DataSyncService.syncItemVariants();
+            await DataSyncService.syncPromos(); // NEW: Sync promos first
+            await DataSyncService.syncPromoItems(); // NEW: Sync promo items after promos and menu items
             console.log('Full data synchronization complete.');
         } catch (error) {
             console.error('Error during full data synchronization:', error);
