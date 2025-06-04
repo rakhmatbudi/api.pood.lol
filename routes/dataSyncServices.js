@@ -3,25 +3,34 @@
 const express = require('express');
 const router = express.Router();
 const DataSyncService = require('../services/DataSyncService'); // Import the service
-const Promo = require('../models/Promo'); // Import the Promo model for direct use
-const MenuItem = require('../models/MenuItem'); // Assuming you have a MenuItem model, if needed for validation/lookup
+
+// *** IMPORTANT: If you no longer need direct CRUD operations via these routes
+// If these are purely for triggering sync, you can remove the Promo model imports.
+// However, if you still want API endpoints for direct management alongside sync,
+// you would need to keep the Promo model import and define different routes for them.
+// For now, I'll assume POST /promos and POST /promo_items are *solely* for sync.
+
+// const Promo = require('../models/Promo'); // Remove if not doing direct CRUD
+// const MenuItem = require('../models/MenuItem'); // Remove if not doing direct CRUD
+
+// --- Synchronization Endpoints (POST requests) ---
 
 // Route for triggering the full data synchronization
 router.post('/', async (req, res, next) => {
     try {
-        // Call the fullSync method of the DataSyncService
+        console.log('API Call: POST /data-sync/ (Full Sync)');
         await DataSyncService.fullSync();
-        res.status(200).json({ message: 'Data synchronization completed successfully.' });
+        res.status(200).json({ message: 'Full data synchronization completed successfully.' });
     } catch (error) {
-        // Handle any errors that occur during the synchronization process
         console.error("Error in /sync route:", error);
-        next(error); // Pass the error to the error-handling middleware
+        next(error);
     }
 });
 
 // Route for triggering only menu categories synchronization
 router.post('/categories', async (req, res, next) => {
     try {
+        console.log('API Call: POST /data-sync/categories (Sync Categories)');
         await DataSyncService.syncItemCategories();
         res.status(200).json({ message: 'Menu categories synchronized successfully.' });
     } catch (error) {
@@ -33,6 +42,7 @@ router.post('/categories', async (req, res, next) => {
 // Route for triggering only menu items synchronization
 router.post('/items', async (req, res, next) => {
     try {
+        console.log('API Call: POST /data-sync/items (Sync Items)');
         await DataSyncService.syncMenuItems();
         res.status(200).json({ message: 'Menu items synchronized successfully.' });
     } catch (error) {
@@ -41,9 +51,10 @@ router.post('/items', async (req, res, next) => {
     }
 });
 
-// New route for triggering only menu item variants synchronization
+// Route for triggering only menu item variants synchronization
 router.post('/variants', async (req, res, next) => {
     try {
+        console.log('API Call: POST /data-sync/variants (Sync Variants)');
         await DataSyncService.syncItemVariants();
         res.status(200).json({ message: 'Menu item variants synchronized successfully.' });
     } catch (error) {
@@ -52,9 +63,39 @@ router.post('/variants', async (req, res, next) => {
     }
 });
 
-// --- NEW PROMO MANAGEMENT ENDPOINTS (DIRECTLY IN ROUTE) ---
+// --- CORRECTED: Route for migrating promos table ---
+router.post('/promos', async (req, res, next) => {
+    try {
+        console.log('API Call: POST /data-sync/promos (Migrate Promos Table)');
+        await DataSyncService.syncPromos(); // <--- Now calls the sync service!
+        res.status(200).json({ message: 'Promos table synchronized successfully.' });
+    } catch (error) {
+        console.error("Error in /sync/promos route (migration):", error);
+        next(error);
+    }
+});
 
-// Get all promos
+// --- CORRECTED: Route for migrating promo_items table ---
+router.post('/promo_items', async (req, res, next) => {
+    try {
+        console.log('API Call: POST /data-sync/promo_items (Migrate Promo Items Table)');
+        await DataSyncService.syncPromoItems(); // <--- Now calls the sync service!
+        res.status(200).json({ message: 'Promo items table synchronized successfully.' });
+    } catch (error) {
+        console.error("Error in /sync/promo_items route (migration):", error);
+        next(error);
+    }
+});
+
+
+// --- OLD PROMO MANAGEMENT ENDPOINTS (CONSIDER REMOVING or MOVING) ---
+// If you want to keep these for direct CRUD, you must change their paths
+// to avoid conflicts with the sync endpoints. For example:
+// router.get('/manage/promos', ... ) or create a separate /promos router.
+// For now, I'm assuming you primarily want the sync functionality on these paths.
+
+/*
+// Get all promos - This conflicts with POST /promos if you want /promos to be a sync route
 router.get('/promos', async (req, res, next) => {
     try {
         const promos = await Promo.findAll();
@@ -68,7 +109,7 @@ router.get('/promos', async (req, res, next) => {
     }
 });
 
-// Get a promo by ID
+// Get a promo by ID - This conflicts with POST /promos if you want /promos to be a sync route
 router.get('/promos/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -89,22 +130,10 @@ router.get('/promos/:id', async (req, res, next) => {
     }
 });
 
-// Create a new promo
-router.post('/promos', async (req, res, next) => {
-    try {
-        const newPromo = await Promo.create(req.body);
-        res.status(201).json({
-            status: 'success',
-            message: 'Promo created successfully',
-            data: newPromo
-        });
-    } catch (error) {
-        console.error('Error creating promo:', error);
-        next(error);
-    }
-});
+// Create a new promo - THIS IS THE ORIGINAL CONFLICTING ROUTE
+// router.post('/promos', async (req, res, next) => { ... }); // Replaced by sync route
 
-// Update an existing promo
+// Update an existing promo - Conflicts if you want /promos/:id to be a sync route
 router.put('/promos/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -126,7 +155,7 @@ router.put('/promos/:id', async (req, res, next) => {
     }
 });
 
-// Delete a promo
+// Delete a promo - Conflicts if you want /promos/:id to be a sync route
 router.delete('/promos/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -147,5 +176,6 @@ router.delete('/promos/:id', async (req, res, next) => {
         next(error);
     }
 });
+*/
 
 module.exports = router;

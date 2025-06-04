@@ -47,6 +47,9 @@ class DataSyncService {
             for (const sourceRecord of sourceData) {
                 const destinationRecord = {};
 
+                // --- IMPORTANT: Log the source record to verify its content and casing ---
+                console.log('Original Source Record:', sourceRecord);
+            
                 // Only include fields that have an explicit mapping and are not undefined
                 for (const sourceKey in columnMapping) {
                     const destinationKey = columnMapping[sourceKey];
@@ -256,6 +259,8 @@ class DataSyncService {
             'promo', // Destination table (assuming same name)
             {
                 columnMapping: {
+                    // VERIFY THESE SOURCE_KEY (left side) NAMES AGAINST YOUR ACTUAL SOURCE DB SCHEMA AND QUERY RESULT.
+                    // Pay attention to case. If source has 'Promo_id' it must be mapped as 'Promo_id' here.
                     promo_id: 'promo_id',
                     promo_name: 'promo_name',
                     promo_description: 'promo_description',
@@ -268,8 +273,8 @@ class DataSyncService {
                     discount_amount: 'discount_amount',
                     is_active: 'is_active'
                 },
-                idField: 'promo_id', // Primary key for promos
-                useUuid: false // Assuming promo_id is serial in destination
+                idField: 'promo_id', // Primary key for promos in destination
+                useUuid: false // Correct for serial4
             }
         );
     }
