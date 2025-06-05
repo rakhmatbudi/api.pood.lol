@@ -558,6 +558,8 @@ exports.checkout = async (req, res) => {
         // Prepare detailed response, similar to payment_summary
         const checkoutSummary = {
             order_id: order_id,
+            order_number: order.order_number,
+            table_number: order.table_number,
             total_items_amount: totalAmount,
             discount_amount: parseFloat(discountAmount.toFixed(2)),
             promo_id_applied: promo_id_to_use,
