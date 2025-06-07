@@ -3,8 +3,16 @@ const db = require('../config/db');
 const MenuItemVariant = require('./MenuItemVariant'); // Import MenuItemVariant model for direct use if needed
 
 class MenuItem {
-  // Fetches all active menu items along with their category details
-  static async findAll() {
+  // Fetches all menu items along with their category details,
+  // optionally including inactive items based on the includeInactive flag.
+  static async findAll(includeInactive = false) { // Add includeInactive parameter with default false
+    let whereClause = '';
+    const values = [];
+
+    if (!includeInactive) {
+      whereClause = 'WHERE mi.is_active = true';
+    }
+
     const query = `
       SELECT
           mi.id AS menu_item_id,
@@ -37,15 +45,14 @@ class MenuItem {
           menu_categories mc ON mi.category_id = mc.id
       LEFT JOIN
           menu_item_variants miv ON mi.id = miv.menu_item_id
-      WHERE
-          mi.is_active = true
+      ${whereClause} -- Dynamically add WHERE clause
       GROUP BY
           mi.id, mi.name, mi.description, mi.price, mi.is_active, mi.image_path, mi.created_at, mi.updated_at,
           mc.id, mc.name, mc.description -- All non-aggregated columns must be in GROUP BY
       ORDER BY
           mi.name ASC;
     `;
-    const { rows } = await db.query(query);
+    const { rows } = await db.query(query, values);
 
 
     // Map the flat rows into a nested structure for menu items with their variants
@@ -68,6 +75,8 @@ class MenuItem {
   }
 
   // Fetches a single menu item by ID, including its associated variants
+  // This method will now also check for active status. If you want to fetch
+  // inactive items by ID, you might need a separate method or another flag.
   static async findById(id) {
     const query = `
       SELECT
