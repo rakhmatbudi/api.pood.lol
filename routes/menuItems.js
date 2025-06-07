@@ -1,22 +1,22 @@
 // routes/menuItems.js
 const express = require('express');
-const menuItemController = require('../controllers/menuItemController');
-
 const router = express.Router();
+const menuItemController = require('../controllers/menuItemController');
+const upload = require('../middleware/upload'); // <--- IMPORT the configured Multer instance from middleware
 
-// Place more specific routes BEFORE more general ones.
+// There should be NO Multer configuration (storage, destination, filename, or multer() call) here!
 
-// GET all menu items (this is a general route, but often comes first for readability)
+// GET all menu items
 router.get('/', menuItemController.getAllMenuItems);
 
-// POST a new menu item
-router.post('/', menuItemController.createMenuItem);
+// POST a new menu item (using the imported 'upload' middleware)
+router.post('/', upload.single('image'), menuItemController.createMenuItem);
 
-// GET a single menu item by ID (This is now correctly placed after the general '/' route)
+// GET a single menu item by ID
 router.get('/:id', menuItemController.getMenuItemById);
 
-// UPDATE an existing menu item by ID
-router.put('/:id', menuItemController.updateMenuItem);
+// UPDATE an existing menu item by ID (using the imported 'upload' middleware)
+router.put('/:id', upload.single('image'), menuItemController.updateMenuItem);
 
 // DELETE a menu item by ID
 router.delete('/:id', menuItemController.deleteMenuItem);

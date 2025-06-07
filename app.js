@@ -9,6 +9,9 @@ require('dotenv').config(); // Load environment variables from .env file
 const sequelize = require('./config/database');
 const { connectAndSyncDatabase } = require('./config/database');
 
+const dotenv = require('dotenv'); // For environment variables
+const cloudinary = require('cloudinary').v2; // For Cloudinary config
+
 // Import your routes
 const orderRoutes = require('./routes/orders');
 const cashierSessionRoutes = require('./routes/cashierSessions');
@@ -27,8 +30,23 @@ const orderStatusesRoutes = require('./routes/orderStatuses');
 const promoRoutes = require('./routes/promos'); 
 const menuCategoryRoutes = require('./routes/menuCategories');
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+dotenv.config();
+
+// Configure Cloudinary (using environment variables is highly recommended)
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'komunitas',
+    api_key: process.env.CLOUDINARY_API_KEY || '213682391989769',
+    api_secret: process.env.CLOUDINARY_API_SECRET || 's46aSXkfYEAo4dPxJX5eoHMml4Y'
+});
+
+// Middleware to parse JSON bodies
+app.use(express.json());
+// Middleware to parse URL-encoded bodies (for form data, if not multipart)
+app.use(express.urlencoded({ extended: true }));
 
 // --- DATABASE CONNECTION AND MODEL SYNC ---
 // Call the function to connect to the database and synchronize models
