@@ -25,7 +25,7 @@ const customerRoutes = require('./routes/customers');
 const orderTypeRoutes = require('./routes/orderTypes');
 const orderStatusesRoutes = require('./routes/orderStatuses');
 const promoRoutes = require('./routes/promos'); 
-
+const menuCategoryRoutes = require('./routes/menuCategories');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +56,7 @@ app.use('/customers', customerRoutes);
 app.use('/order-types', orderTypeRoutes);
 app.use('/order-statuses', orderStatusesRoutes); 
 app.use('/promos', promoRoutes); 
+app.use('/menu-categories', menuCategoryRoutes);
 
 // Root route
 app.get('/', (req, res) => {
