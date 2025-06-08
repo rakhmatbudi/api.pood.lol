@@ -15,26 +15,68 @@ class MenuCategory {
   }
 
   static async create(categoryData) {
-    const { name, description, is_displayed, display_picture } = categoryData;
+    const { name, description, type, is_displayed, display_picture } = categoryData;
     const query = `
-      INSERT INTO menu_categories (name, description, is_displayed, display_picture)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO menu_categories (name, description, type, is_displayed, display_picture)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
-    const values = [name, description, is_displayed, display_picture];
+    const values = [name, description, type, is_displayed, display_picture];
     const { rows } = await db.query(query, values);
     return rows[0];
   }
 
   static async update(id, categoryData) {
-    const { name, description, is_displayed, display_picture } = categoryData;
+    // Build dynamic query based on provided fields
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (categoryData.name !== undefined) {
+      fields.push(`name = $${paramCount}`);
+      values.push(categoryData.name);
+      paramCount++;
+    }
+
+    if (categoryData.description !== undefined) {
+      fields.push(`description = $${paramCount}`);
+      values.push(categoryData.description);
+      paramCount++;
+    }
+
+    if (categoryData.type !== undefined) {
+      fields.push(`type = $${paramCount}`);
+      values.push(categoryData.type);
+      paramCount++;
+    }
+
+    if (categoryData.is_displayed !== undefined) {
+      fields.push(`is_displayed = $${paramCount}`);
+      values.push(categoryData.is_displayed);
+      paramCount++;
+    }
+
+    if (categoryData.display_picture !== undefined) {
+      fields.push(`display_picture = $${paramCount}`);
+      values.push(categoryData.display_picture);
+      paramCount++;
+    }
+
+    // Always update the updated_at field
+    fields.push(`updated_at = NOW()`);
+
+    if (fields.length === 1) { // Only updated_at field
+      throw new Error('No fields to update');
+    }
+
     const query = `
       UPDATE menu_categories
-      SET name = $1, description = $2, is_displayed = $3, display_picture = $4, updated_at = NOW()
-      WHERE id = $5
+      SET ${fields.join(', ')}
+      WHERE id = $${paramCount}
       RETURNING *
     `;
-    const values = [name, description, is_displayed, display_picture, id];
+    values.push(id);
+
     const { rows } = await db.query(query, values);
     return rows[0];
   }
