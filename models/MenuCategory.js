@@ -15,19 +15,42 @@ class MenuCategory {
   }
 
   static async create(categoryData) {
-    const { name, description, type, is_displayed, display_picture } = categoryData;
+    const {
+      name,
+      description,
+      type, // Keep 'type' if it's still relevant even if not in the new schema, or remove if truly deprecated.
+      is_displayed,
+      display_picture,
+      menu_category_group, // New field
+      sku_id,              // New field
+      is_highlight,        // New field
+      is_display_for_self_order // New field
+    } = categoryData;
+
     const query = `
-      INSERT INTO menu_categories (name, description, type, is_displayed, display_picture)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO menu_categories (
+        name, description, type, is_displayed, display_picture,
+        menu_category_group, sku_id, is_highlight, is_display_for_self_order
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
-    const values = [name, description, type, is_displayed, display_picture];
+    const values = [
+      name,
+      description,
+      type,
+      is_displayed,
+      display_picture,
+      menu_category_group,
+      sku_id,
+      is_highlight,
+      is_display_for_self_order
+    ];
     const { rows } = await db.query(query, values);
     return rows[0];
   }
 
   static async update(id, categoryData) {
-    // Build dynamic query based on provided fields
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -62,7 +85,31 @@ class MenuCategory {
       paramCount++;
     }
 
-    // Always update the updated_at field
+    // Add new fields for update
+    if (categoryData.menu_category_group !== undefined) {
+      fields.push(`menu_category_group = $${paramCount}`);
+      values.push(categoryData.menu_category_group);
+      paramCount++;
+    }
+
+    if (categoryData.sku_id !== undefined) {
+      fields.push(`sku_id = $${paramCount}`);
+      values.push(categoryData.sku_id);
+      paramCount++;
+    }
+
+    if (categoryData.is_highlight !== undefined) {
+      fields.push(`is_highlight = $${paramCount}`);
+      values.push(categoryData.is_highlight);
+      paramCount++;
+    }
+
+    if (categoryData.is_display_for_self_order !== undefined) {
+      fields.push(`is_display_for_self_order = $${paramCount}`);
+      values.push(categoryData.is_display_for_self_order);
+      paramCount++;
+    }
+
     fields.push(`updated_at = NOW()`);
 
     if (fields.length === 1) { // Only updated_at field
@@ -81,7 +128,6 @@ class MenuCategory {
     return rows[0];
   }
 
-  // Soft delete: set is_displayed to FALSE
   static async softDelete(id) {
     const query = `
       UPDATE menu_categories
@@ -93,7 +139,6 @@ class MenuCategory {
     return rows[0];
   }
 
-  // Permanent delete (use with caution)
   static async delete(id) {
     const query = 'DELETE FROM menu_categories WHERE id = $1 RETURNING *';
     const { rows } = await db.query(query, [id]);

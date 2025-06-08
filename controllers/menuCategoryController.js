@@ -49,9 +49,16 @@ exports.createMenuCategory = async (req, res) => {
   try {
     console.log('Request body:', req.body);
     console.log('Request file:', req.file);
-    
-    // REMOVED TYPE FROM DESTRUCTURING
-    const { name, description, is_displayed } = req.body;
+
+    const {
+      name,
+      description,
+      is_displayed,
+      menu_category_group, // New field
+      sku_id,              // New field
+      is_highlight,        // New field
+      is_display_for_self_order // New field
+    } = req.body;
 
     // Validate required fields
     if (!name) {
@@ -74,10 +81,10 @@ exports.createMenuCategory = async (req, res) => {
         console.log('Image uploaded successfully:', display_picture);
       } catch (uploadError) {
         console.error('Cloudinary upload error:', uploadError);
-        return res.status(500).json({ 
-          status: 'error', 
-          message: 'Failed to upload image to Cloudinary', 
-          error: uploadError.message 
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to upload image to Cloudinary',
+          error: uploadError.message
         });
       } finally {
         // Clean up local file
@@ -90,25 +97,28 @@ exports.createMenuCategory = async (req, res) => {
       }
     }
 
-    // REMOVED TYPE FROM CATEGORY DATA
     const categoryData = {
       name,
       description,
       is_displayed: is_displayed === 'true' || is_displayed === true, // Handle both string and boolean
-      display_picture
+      display_picture,
+      menu_category_group, // Pass new field
+      sku_id,              // Pass new field
+      is_highlight: is_highlight === 'true' || is_highlight === true, // Handle boolean
+      is_display_for_self_order: is_display_for_self_order === 'true' || is_display_for_self_order === true // Handle boolean
     };
 
     console.log('Creating category with data:', categoryData);
 
     const newCategory = await MenuCategory.create(categoryData);
-    
+
     res.status(201).json({
       status: 'success',
       data: newCategory,
     });
   } catch (error) {
     console.error('Error creating menu category:', error);
-    
+
     // Clean up local file if there was an error
     if (localFilePath) {
       try {
@@ -117,11 +127,11 @@ exports.createMenuCategory = async (req, res) => {
         console.error('Failed to cleanup file after error:', cleanupError);
       }
     }
-    
+
     if (error.message.includes('Invalid file type') || error.message.includes('File too large')) {
       return res.status(400).json({ status: 'error', message: error.message });
     }
-    
+
     res.status(500).json({
       status: 'error',
       message: 'Failed to create menu category',
@@ -138,9 +148,16 @@ exports.updateMenuCategory = async (req, res) => {
   try {
     console.log('Update request body:', req.body);
     console.log('Update request file:', req.file);
-    
-    // REMOVED TYPE FROM DESTRUCTURING
-    const { name, description, is_displayed } = req.body;
+
+    const {
+      name,
+      description,
+      is_displayed,
+      menu_category_group, // New field
+      sku_id,              // New field
+      is_highlight,        // New field
+      is_display_for_self_order // New field
+    } = req.body;
 
     // Find existing category
     const existingCategory = await MenuCategory.findById(id);
@@ -163,7 +180,7 @@ exports.updateMenuCategory = async (req, res) => {
             const urlParts = existingCategory.display_picture.split('/');
             const publicIdWithExtension = urlParts.slice(-2).join('/');
             const publicId = publicIdWithExtension.split('.')[0];
-            
+
             await cloudinary.uploader.destroy(publicId);
             console.log('Old image deleted from Cloudinary');
           } catch (err) {
@@ -182,10 +199,10 @@ exports.updateMenuCategory = async (req, res) => {
         console.log('New image uploaded successfully:', display_picture);
       } catch (uploadError) {
         console.error('Cloudinary upload error during update:', uploadError);
-        return res.status(500).json({ 
-          status: 'error', 
-          message: 'Failed to upload new image', 
-          error: uploadError.message 
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to upload new image',
+          error: uploadError.message
         });
       } finally {
         // Clean up local file
@@ -203,7 +220,7 @@ exports.updateMenuCategory = async (req, res) => {
           const urlParts = existingCategory.display_picture.split('/');
           const publicIdWithExtension = urlParts.slice(-2).join('/');
           const publicId = publicIdWithExtension.split('.')[0];
-          
+
           await cloudinary.uploader.destroy(publicId);
           console.log('Image removed from Cloudinary');
         } catch (err) {
@@ -213,25 +230,28 @@ exports.updateMenuCategory = async (req, res) => {
       display_picture = null;
     }
 
-    // REMOVED TYPE FROM CATEGORY DATA
     const categoryData = {
       name,
       description,
       is_displayed: is_displayed !== undefined ? (is_displayed === 'true' || is_displayed === true) : existingCategory.is_displayed,
-      display_picture
+      display_picture,
+      menu_category_group, // Pass new field
+      sku_id,              // Pass new field
+      is_highlight: is_highlight !== undefined ? (is_highlight === 'true' || is_highlight === true) : existingCategory.is_highlight, // Handle boolean
+      is_display_for_self_order: is_display_for_self_order !== undefined ? (is_display_for_self_order === 'true' || is_display_for_self_order === true) : existingCategory.is_display_for_self_order // Handle boolean
     };
 
     console.log('Updating category with data:', categoryData);
 
     const updatedCategory = await MenuCategory.update(id, categoryData);
-    
+
     res.status(200).json({
       status: 'success',
       data: updatedCategory,
     });
   } catch (error) {
     console.error(`Error updating menu category ${id}:`, error);
-    
+
     // Clean up local file if there was an error
     if (localFilePath) {
       try {
@@ -240,7 +260,7 @@ exports.updateMenuCategory = async (req, res) => {
         console.error('Failed to cleanup file after error:', cleanupError);
       }
     }
-    
+
     res.status(500).json({
       status: 'error',
       message: 'Failed to update menu category',
@@ -257,7 +277,7 @@ exports.deleteMenuCategory = async (req, res) => {
       const urlParts = category.display_picture.split('/');
       const publicIdWithExtension = urlParts.slice(-2).join('/');
       const publicId = publicIdWithExtension.split('.')[0];
-      
+
       try {
         await cloudinary.uploader.destroy(publicId);
         console.log('Image deleted from Cloudinary during category deletion');

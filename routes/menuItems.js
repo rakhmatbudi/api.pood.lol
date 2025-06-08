@@ -9,6 +9,9 @@ const upload = require('../middleware/upload'); // <--- IMPORT the configured Mu
 // GET all menu items
 router.get('/', menuItemController.getAllMenuItems);
 
+// GET all menu items for a specific category
+router.get('/category/:categoryId', menuItemController.getMenuItemsByCategoryId); 
+
 // POST a new menu item (using the imported 'upload' middleware)
 router.post('/', upload.single('image'), menuItemController.createMenuItem);
 

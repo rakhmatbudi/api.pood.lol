@@ -1,3 +1,4 @@
+// controllers/menuItemController.js
 const MenuItem = require('../models/MenuItem');
 const cloudinary = require('../config/cloudinary');
 const fs = require('fs/promises');
@@ -27,6 +28,20 @@ exports.getMenuItemById = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Failed to fetch menu item', error: error.message });
     }
 };
+
+// New controller function
+exports.getMenuItemsByCategoryId = async (req, res) => {
+    const { categoryId } = req.params;
+    try {
+        const includeInactive = req.query.includeInactive === 'true';
+        const menuItems = await MenuItem.findByCategoryId(categoryId, includeInactive);
+        res.status(200).json({ status: 'success', data: menuItems });
+    } catch (error) {
+        console.error(`Error fetching menu items for category ${categoryId}:`, error);
+        res.status(500).json({ status: 'error', message: `Failed to fetch menu items for category ${categoryId}`, error: error.message });
+    }
+};
+
 
 exports.createMenuItem = async (req, res) => {
     let image_path = null;
@@ -105,8 +120,8 @@ exports.updateMenuItem = async (req, res) => {
             try {
                 if (existingMenuItem.image_path) {
                     const urlParts = existingMenuItem.image_path.split('/');
-                    const publicIdWithExtension = urlParts.slice(-2).join('/');
-                    const publicId = publicIdWithExtension.split('.')[0];
+                    // A more robust way to get public_id
+                    const publicId = urlParts.slice(urlParts.indexOf('upload') + 2).join('/').split('.')[0];
                     
                     await cloudinary.uploader.destroy(publicId).catch(err => {
                         console.warn('Could not delete old image from Cloudinary:', err);
@@ -135,8 +150,8 @@ exports.updateMenuItem = async (req, res) => {
         } else if (req.body.image_path === null || req.body.image_path === '') {
             if (existingMenuItem.image_path) {
                 const urlParts = existingMenuItem.image_path.split('/');
-                const publicIdWithExtension = urlParts.slice(-2).join('/');
-                const publicId = publicIdWithExtension.split('.')[0];
+                // A more robust way to get public_id
+                const publicId = urlParts.slice(urlParts.indexOf('upload') + 2).join('/').split('.')[0];
                 
                 await cloudinary.uploader.destroy(publicId).catch(err => {
                     console.warn('Could not delete old image from Cloudinary (clear request):', err);
@@ -177,8 +192,8 @@ exports.deleteMenuItem = async (req, res) => {
         const menuItem = await MenuItem.findById(id);
         if (menuItem && menuItem.image_path) {
             const urlParts = menuItem.image_path.split('/');
-            const publicIdWithExtension = urlParts.slice(-2).join('/');
-            const publicId = publicIdWithExtension.split('.')[0];
+            // A more robust way to get public_id
+            const publicId = urlParts.slice(urlParts.indexOf('upload') + 2).join('/').split('.')[0];
             
             try {
                 await cloudinary.uploader.destroy(publicId);
