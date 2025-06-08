@@ -50,13 +50,14 @@ exports.createMenuCategory = async (req, res) => {
     console.log('Request body:', req.body);
     console.log('Request file:', req.file);
     
-    const { name, description, type, is_displayed } = req.body;
+    // REMOVED TYPE FROM DESTRUCTURING
+    const { name, description, is_displayed } = req.body;
 
     // Validate required fields
-    if (!name || !type) {
+    if (!name) {
       return res.status(400).json({
         status: 'error',
-        message: 'Name and type are required fields'
+        message: 'Name is required'
       });
     }
 
@@ -89,11 +90,10 @@ exports.createMenuCategory = async (req, res) => {
       }
     }
 
-    // Prepare category data
+    // REMOVED TYPE FROM CATEGORY DATA
     const categoryData = {
       name,
-      description: description || null,
-      type,
+      description,
       is_displayed: is_displayed === 'true' || is_displayed === true, // Handle both string and boolean
       display_picture
     };
@@ -139,7 +139,8 @@ exports.updateMenuCategory = async (req, res) => {
     console.log('Update request body:', req.body);
     console.log('Update request file:', req.file);
     
-    const { name, description, type, is_displayed, removeImage } = req.body;
+    // REMOVED TYPE FROM DESTRUCTURING
+    const { name, description, is_displayed } = req.body;
 
     // Find existing category
     const existingCategory = await MenuCategory.findById(id);
@@ -153,24 +154,8 @@ exports.updateMenuCategory = async (req, res) => {
     // Start with existing image
     display_picture = existingCategory.display_picture;
 
-    // Handle image removal request
-    if (removeImage === 'true' || removeImage === true || req.body.display_picture === null) {
-      if (existingCategory.display_picture) {
-        try {
-          const urlParts = existingCategory.display_picture.split('/');
-          const publicIdWithExtension = urlParts.slice(-2).join('/');
-          const publicId = publicIdWithExtension.split('.')[0];
-          
-          await cloudinary.uploader.destroy(publicId);
-          console.log('Old image deleted from Cloudinary');
-        } catch (err) {
-          console.warn('Could not delete old image from Cloudinary:', err);
-        }
-      }
-      display_picture = null;
-    }
     // Handle new image upload
-    else if (localFilePath) {
+    if (localFilePath) {
       try {
         // Delete old image if it exists
         if (existingCategory.display_picture) {
@@ -211,18 +196,30 @@ exports.updateMenuCategory = async (req, res) => {
           console.error('Failed to delete local temp file:', unlinkError);
         }
       }
+    } else if (req.body.display_picture === null || req.body.display_picture === '' || req.body.removeImage === 'true') {
+      // Handle image removal request - matches your menu item pattern
+      if (existingCategory.display_picture) {
+        try {
+          const urlParts = existingCategory.display_picture.split('/');
+          const publicIdWithExtension = urlParts.slice(-2).join('/');
+          const publicId = publicIdWithExtension.split('.')[0];
+          
+          await cloudinary.uploader.destroy(publicId);
+          console.log('Image removed from Cloudinary');
+        } catch (err) {
+          console.warn('Could not delete old image from Cloudinary (removal request):', err);
+        }
+      }
+      display_picture = null;
     }
 
-    // Prepare updated data (only update provided fields)
-    const categoryData = {};
-    
-    if (name !== undefined) categoryData.name = name;
-    if (description !== undefined) categoryData.description = description || null;
-    if (type !== undefined) categoryData.type = type;
-    if (is_displayed !== undefined) {
-      categoryData.is_displayed = is_displayed === 'true' || is_displayed === true; // Handle both string and boolean
-    }
-    categoryData.display_picture = display_picture;
+    // REMOVED TYPE FROM CATEGORY DATA
+    const categoryData = {
+      name,
+      description,
+      is_displayed: is_displayed !== undefined ? (is_displayed === 'true' || is_displayed === true) : existingCategory.is_displayed,
+      display_picture
+    };
 
     console.log('Updating category with data:', categoryData);
 
