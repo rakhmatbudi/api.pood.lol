@@ -1,14 +1,6 @@
-// controllers/menuItemController.js - Fixed version
 const MenuItem = require('../models/MenuItem');
-const cloudinary = require('cloudinary').v2; // Import Cloudinary
-const fs = require('fs/promises'); // Node.js built-in module for file system operations (ONLY import once)
-
-// Configure Cloudinary (it's better to put these in a config file or environment variables)
-cloudinary.config({
-    cloud_name: 'komunitas',
-    api_key: '213682391989769',
-    api_secret: 's46aSXkfYEAo4dPxJX5eoHMml4Y'
-});
+const cloudinary = require('../config/cloudinary'); // Import configured Cloudinary
+const fs = require('fs/promises');
 
 exports.getAllMenuItems = async (req, res) => {
     try {
@@ -38,7 +30,7 @@ exports.getMenuItemById = async (req, res) => {
 
 exports.createMenuItem = async (req, res) => {
     let image_path = null;
-    const localFilePath = req.file ? req.file.path : null; // Define localFilePath here
+    const localFilePath = req.file ? req.file.path : null;
 
     console.log('🔍 Incoming file (req.file):', req.file);
     console.log('🔍 Local file path for Cloudinary:', localFilePath);
@@ -121,7 +113,7 @@ exports.createMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
     const { id } = req.params;
     let image_path = null;
-    const localFilePath = req.file ? req.file.path : null; // Define localFilePath here (was missing)
+    const localFilePath = req.file ? req.file.path : null;
     
     console.log('🔍 Incoming file (req.file):', req.file);
     console.log('🔍 Local file path for Cloudinary:', localFilePath);
