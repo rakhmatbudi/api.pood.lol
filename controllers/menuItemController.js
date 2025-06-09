@@ -78,7 +78,8 @@ exports.createMenuItem = async (req, res) => {
             description,
             price,
             category_id: parseInt(category_id),
-            is_active: is_active === 'true',
+            // Fix: Handle both boolean and string values for is_active
+            is_active: typeof is_active === 'boolean' ? is_active : is_active === 'true',
             image_path
         };
 
@@ -165,7 +166,10 @@ exports.updateMenuItem = async (req, res) => {
             description,
             price,
             category_id: category_id ? parseInt(category_id) : existingMenuItem.category_id,
-            is_active: is_active !== undefined ? (is_active === 'true') : existingMenuItem.is_active,
+            // Fix: Handle both boolean and string values for is_active
+            is_active: is_active !== undefined ? 
+                (typeof is_active === 'boolean' ? is_active : is_active === 'true') : 
+                existingMenuItem.is_active,
             image_path
         };
 
