@@ -86,7 +86,7 @@ class MenuItem {
                 mc.description AS category_description
             FROM menu_items mi
             JOIN menu_categories mc ON mi.category_id = mc.id
-            WHERE mi.id = $1 AND mi.is_active = true;
+            WHERE mi.id = $1;
         `;
         const { rows: menuItemRows } = await db.query(query, [id]);
         const menuItem = menuItemRows[0];
