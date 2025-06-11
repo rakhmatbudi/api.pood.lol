@@ -18,10 +18,9 @@ class MenuCategory {
     const {
       name,
       description,
-      type, // Keep 'type' if it's still relevant even if not in the new schema, or remove if truly deprecated.
       is_displayed,
       display_picture,
-      menu_category_group, // New field
+      menu_category_group,  
       sku_id,              // New field
       is_highlight,        // New field
       is_display_for_self_order // New field
@@ -29,16 +28,16 @@ class MenuCategory {
 
     const query = `
       INSERT INTO menu_categories (
-        name, description, type, is_displayed, display_picture,
-        menu_category_group, sku_id, is_highlight, is_display_for_self_order
+        name, description, is_displayed, display_picture,
+      menu_category_group, 
+        sku_id, is_highlight, is_display_for_self_order
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
     const values = [
       name,
       description,
-      type,
       is_displayed,
       display_picture,
       menu_category_group,
