@@ -3,14 +3,15 @@
 const express = require('express');
 const orderController = require('../controllers/orderController');
 const { validateOrder, validateUpdateOrder } = require('../middleware/validate');
+const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // Import the new middleware
 const Order = require('../models/Order'); // Import the Order model here to directly call its method
 
 const router = express.Router();
 
-router.get('/', orderController.getAllOrders);
+router.get('/', getTempTenantId, orderController.getAllOrders);
 
 // Route for creating new ORDER
-router.post('/', validateOrder, orderController.createOrder);
+router.post('/', getTempTenantId, validateOrder, orderController.createOrder);
 // Example usage:
 // {
 //    "table_number": "7",
@@ -21,54 +22,23 @@ router.post('/', validateOrder, orderController.createOrder);
 // }
 
 // Existing route for generic status update
-router.put('/:id/status', orderController.updateOrderStatus);
+router.put('/:id/status', getTempTenantId, orderController.updateOrderStatus);
 // Example usage: PUT http://localhost:3000/api/orders/5/status
 // Body: { "status": "cancelled" }
 
 // NEW: Route to cancel an order, explicitly setting its order_status to 3 ('cancelled')
 // This bypasses the need to send "status": "cancelled" in the body,
 // making the intent of the endpoint clearer.
-router.put('/:id/cancel', async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Directly call the model method to update the status to 'cancelled'.
-    // The model's updateOrderStatus method will handle looking up the ID for 'cancelled' (which is 3).
-    const updatedOrder = await Order.updateOrderStatus(id, 'cancelled');
-
-    if (!updatedOrder) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Order not found or already cancelled'
-      });
-    }
-
-    res.status(200).json({
-      status: 'success',
-      message: `Order ${id} has been cancelled.`,
-      data: updatedOrder
-    });
-  } catch (error) {
-    console.error(`Error cancelling order ${req.params.id}:`, error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to cancel order',
-      details: error.message
-    });
-  }
-});
-
-
-// New route to get orders for a specific cashier session ID
-router.get('/sessions/:sessionId', orderController.getOrdersBySessionId);
-
-router.get('/open/sessions/:cashier_session_id', orderController.getOpenOrdersBySession);
-router.get('/status/:status', orderController.getOrdersByStatus);
-router.get('/:id', orderController.getOrderById);
-router.put('/:id', validateUpdateOrder, orderController.updateOrder);
-router.delete('/:id', orderController.deleteOrder);
+router.put('/:id/cancel', getTempTenantId, orderController.cancelOrder); 
+router.get('/sessions/:sessionId', getTempTenantId, orderController.getOrdersBySessionId);
+router.get('/open/sessions/:cashier_session_id', getTempTenantId, orderController.getOpenOrdersBySession);
+router.get('/status/:status', getTempTenantId, orderController.getOrdersByStatus);
+router.get('/:id', getTempTenantId, orderController.getOrderById);
+router.put('/:id', getTempTenantId, validateUpdateOrder, orderController.updateOrder);
+router.delete('/:id', getTempTenantId, orderController.deleteOrder);
 
 // Route for POST adding order items to a specific order
-router.post('/:orderId/items', orderController.addOrderItem);
+router.post('/:orderId/items', getTempTenantId, orderController.addOrderItem);
 // usage: POST http://localhost:3000/api/orders/5/items
 // {
 //    "menu_item_id": 10,       // The ID of the menu item being ordered
@@ -82,10 +52,10 @@ router.post('/:orderId/items', orderController.addOrderItem);
 // }
 
 // Route for PUT updating an order item's status
-router.put('/:orderId/items/:itemId/status', orderController.updateOrderItemStatus);
+router.put('/:orderId/items/:itemId/status', getTempTenantId, orderController.updateOrderItemStatus);
 
 // Route to get all orders grouped by cashier session, sorted by time descending
-router.get('/grouped/sessions/desc', orderController.getAllOrdersGroupedBySessionDescending);
+router.get('/grouped/sessions/desc', getTempTenantId, orderController.getAllOrdersGroupedBySessionDescending);
 
 
 module.exports = router;

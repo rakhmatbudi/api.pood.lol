@@ -5,6 +5,7 @@ exports.getAllOrderStatuses = async (req, res) => {
   try {
     const orderStatuses = await OrderStatus.findAll();
     res.status(200).json(orderStatuses);
+    console.log("getting order status");
   } catch (error) {
     console.error('Error fetching order statuses:', error);
     res.status(500).json({ message: 'Error fetching order statuses', error: error.message });
