@@ -4,6 +4,9 @@ const RoundingValue = require('../models/RoundingValue');
 
 exports.applyRounding = async (req, res) => {
     const { amount, roundingTypeId, useDynamicRoundingValue = false } = req.body;
+    // IMPORTANT: Get tenantId from the authenticated user.
+    // This assumes you have middleware that attaches user information (including tenantId) to req.user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
 
     if (typeof amount !== 'number' || amount < 0) {
         return res.status(400).json({ status: 'error', message: 'Invalid amount provided. Must be a non-negative number.' });
@@ -17,20 +20,22 @@ exports.applyRounding = async (req, res) => {
         let associatedRoundingNumber = null; // Initialize to null
 
         if (useDynamicRoundingValue) {
-            const dynamicRule = await RoundingValue.getApplicableRoundingRule(amount); // Modified to fetch the full rule
+            // Pass tenantId to the model method
+            const dynamicRule = await RoundingValue.getApplicableRoundingRule(amount, tenantId); // <--- MODIFIED
             if (!dynamicRule) {
                 return res.status(404).json({ status: 'error', message: 'No dynamic rounding rule found for the given amount.' });
             }
             effectiveRoundingDigitValue = dynamicRule.rounding_digit_description;
-            associatedRoundingNumber = dynamicRule.rounding_number; // Get rounding_number from the dynamic rule
+            associatedRoundingNumber = dynamicRule.rounding_number;
         } else {
-            const roundingType = await RoundingType.findById(roundingTypeId);
+            // Pass tenantId to the model method
+            const roundingType = await RoundingType.findById(roundingTypeId, tenantId); // <--- MODIFIED
 
             if (!roundingType) {
                 return res.status(404).json({ status: 'error', message: 'Rounding type not found.' });
             }
             effectiveRoundingDigitValue = roundingType.rounding_digit;
-            associatedRoundingNumber = roundingType.rounding_number; // Get rounding_number from the static type
+            associatedRoundingNumber = roundingType.rounding_number;
         }
 
         let roundedAmount;
@@ -49,7 +54,7 @@ exports.applyRounding = async (req, res) => {
             data: {
                 original_amount: amount,
                 rounding_rule_applied: effectiveRoundingDigitValue,
-                rounding_number: associatedRoundingNumber, // Include in response
+                rounding_number: associatedRoundingNumber,
                 rounded_amount: roundedAmount,
                 method: useDynamicRoundingValue ? 'dynamic_value_based' : 'fixed_type_based'
             }
@@ -62,8 +67,11 @@ exports.applyRounding = async (req, res) => {
 };
 
 exports.getRoundingTypes = async (req, res) => {
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
     try {
-        const roundingTypes = await RoundingType.findAll();
+        // Pass tenantId to the model method
+        const roundingTypes = await RoundingType.findAll(tenantId); // <--- MODIFIED
         res.status(200).json({ status: 'success', data: roundingTypes });
     } catch (error) {
         console.error('Error fetching rounding types:', error);
@@ -72,12 +80,16 @@ exports.getRoundingTypes = async (req, res) => {
 };
 
 exports.createRoundingType = async (req, res) => {
-    const { rounding_digit, rounding_number } = req.body; // Added rounding_number
-    if (!rounding_digit || typeof rounding_number !== 'number') { // Basic validation
+    const { rounding_digit, rounding_number } = req.body;
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
+
+    if (!rounding_digit || typeof rounding_number !== 'number') {
         return res.status(400).json({ status: 'error', message: 'Rounding digit and a valid rounding number are required.' });
     }
     try {
-        const newType = await RoundingType.create({ rounding_digit, rounding_number }); // Pass rounding_number
+        // Pass tenantId to the model method
+        const newType = await RoundingType.create({ rounding_digit, rounding_number }, tenantId); // <--- MODIFIED
         res.status(201).json({ status: 'success', data: newType });
     } catch (error) {
         console.error('Error creating rounding type:', error);
@@ -85,14 +97,17 @@ exports.createRoundingType = async (req, res) => {
     }
 };
 
-// Existing methods for RoundingValue (no changes needed here unless you want rounding_number in their return)
 exports.createRoundingValue = async (req, res) => {
     const { rounding_below, rounding_digit } = req.body;
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
+
     if (typeof rounding_below !== 'number' || typeof rounding_digit !== 'number') {
         return res.status(400).json({ status: 'error', message: 'Both rounding_below and rounding_digit must be numbers.' });
     }
     try {
-        const newValue = await RoundingValue.create({ rounding_below, rounding_digit });
+        // Pass tenantId to the model method
+        const newValue = await RoundingValue.create({ rounding_below, rounding_digit }, tenantId); // <--- MODIFIED
         res.status(201).json({ status: 'success', data: newValue });
     } catch (error) {
         console.error('Error creating rounding value:', error);
@@ -101,8 +116,11 @@ exports.createRoundingValue = async (req, res) => {
 };
 
 exports.getRoundingValues = async (req, res) => {
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
     try {
-        const roundingValues = await RoundingValue.findAll();
+        // Pass tenantId to the model method
+        const roundingValues = await RoundingValue.findAll(tenantId); // <--- MODIFIED
         res.status(200).json({ status: 'success', data: roundingValues });
     } catch (error) {
         console.error('Error fetching rounding values:', error);
@@ -112,11 +130,15 @@ exports.getRoundingValues = async (req, res) => {
 
 exports.getRoundingValueByBelow = async (req, res) => {
     const { roundingBelow } = req.params;
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
+
     if (isNaN(parseInt(roundingBelow))) {
         return res.status(400).json({ status: 'error', message: 'Invalid rounding_below value provided.' });
     }
     try {
-        const value = await RoundingValue.findByRoundingBelow(parseInt(roundingBelow));
+        // Pass tenantId to the model method
+        const value = await RoundingValue.findByRoundingBelow(parseInt(roundingBelow), tenantId); // <--- MODIFIED
         if (!value) {
             return res.status(404).json({ status: 'error', message: 'Rounding value not found.' });
         }
@@ -130,11 +152,15 @@ exports.getRoundingValueByBelow = async (req, res) => {
 exports.updateRoundingValue = async (req, res) => {
     const { roundingBelow } = req.params;
     const { rounding_digit } = req.body;
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
+
     if (isNaN(parseInt(roundingBelow)) || typeof rounding_digit !== 'number') {
         return res.status(400).json({ status: 'error', message: 'Invalid input for update.' });
     }
     try {
-        const updatedValue = await RoundingValue.update(parseInt(roundingBelow), { rounding_digit });
+        // Pass tenantId to the model method
+        const updatedValue = await RoundingValue.update(parseInt(roundingBelow), { rounding_digit }, tenantId); // <--- MODIFIED
         if (!updatedValue) {
             return res.status(404).json({ status: 'error', message: 'Rounding value not found for update.' });
         }
@@ -147,11 +173,15 @@ exports.updateRoundingValue = async (req, res) => {
 
 exports.deleteRoundingValue = async (req, res) => {
     const { roundingBelow } = req.params;
+    // IMPORTANT: Get tenantId from the authenticated user.
+    const tenantId = req.user.tenantId; // <--- ADDED: Retrieve tenantId
+
     if (isNaN(parseInt(roundingBelow))) {
         return res.status(400).json({ status: 'error', message: 'Invalid rounding_below value provided.' });
     }
     try {
-        const deletedValue = await RoundingValue.delete(parseInt(roundingBelow));
+        // Pass tenantId to the model method
+        const deletedValue = await RoundingValue.delete(parseInt(roundingBelow), tenantId); // <--- MODIFIED
         if (!deletedValue) {
             return res.status(404).json({ status: 'error', message: 'Rounding value not found for deletion.' });
         }

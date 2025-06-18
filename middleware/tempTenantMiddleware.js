@@ -3,7 +3,7 @@ const getTempTenantId = (req, res, next) => {
     // For testing, you can use a fixed tenant ID
     // In a real app, this would come from auth (e.g., req.user.tenantId)
     // or a trusted header.
-    const tempTenantId = req.headers['x-tenant-id'] || 'serendipity-jag'; // Fallback to a default if header not provided
+    const tempTenantId = req.headers['x-tenant-id'] || '00000001'; // Fallback to a default if header not provided
 
     if (!tempTenantId) {
         return res.status(400).json({
