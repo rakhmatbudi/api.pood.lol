@@ -4,10 +4,10 @@ const db = require('../config/db'); // Assuming you have a database connection s
 class Tax {
     /**
      * Finds all taxes for a specific tenant.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Array>} A promise that resolves to an array of tax objects.
      */
-    static async findAll(tenantId) { // Added tenantId parameter
+    static async findAll(tenant) { // Added tenant parameter
         const query = `
             SELECT
                 id,
@@ -15,20 +15,20 @@ class Tax {
                 description,
                 amount
             FROM public.tax
-            WHERE tenant_id = $1 -- Filter by tenant_id
+            WHERE tenant = $1 -- Filter by tenant
             ORDER BY id DESC;
         `;
-        const { rows } = await db.query(query, [tenantId]); // Pass tenantId to query
+        const { rows } = await db.query(query, [tenant]); // Pass tenant to query
         return rows;
     }
 
     /**
      * Finds a tax by its ID for a specific tenant.
      * @param {number|string} id - The ID of the tax.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the tax object or undefined if not found.
      */
-    static async findById(id, tenantId) { // Added tenantId parameter
+    static async findById(id, tenant) { // Added tenant parameter
         const query = `
             SELECT
                 id,
@@ -36,9 +36,9 @@ class Tax {
                 description,
                 amount
             FROM public.tax
-            WHERE id = $1 AND tenant_id = $2; -- Filter by ID AND tenant_id
+            WHERE id = $1 AND tenant_ = $2; -- Filter by ID AND tenant_
         `;
-        const { rows } = await db.query(query, [id, tenantId]); // Pass id and tenantId
+        const { rows } = await db.query(query, [id, tenant]); // Pass id and tenant
         return rows[0];
     }
 
@@ -48,17 +48,17 @@ class Tax {
      * @param {string} taxData.name - The name of the tax.
      * @param {string} [taxData.description] - The description of the tax.
      * @param {number} taxData.amount - The tax amount/percentage.
-     * @param {string} taxData.tenant_id - The ID of the tenant.
+     * @param {string} taxData.tenant - The ID of the tenant.
      * @returns {Promise<Object>} A promise that resolves to the newly created tax object.
      */
     static async create(taxData) {
-        const { name, description, amount, tenant_id } = taxData; // Destructure tenant_id
+        const { name, description, amount, tenant } = taxData; // Destructure tenant
         const query = `
-            INSERT INTO public.tax (name, description, amount, tenant_id) -- Add tenant_id column
+            INSERT INTO public.tax (name, description, amount, tenant) 
             VALUES ($1, $2, $3, $4)
             RETURNING id, name, description, amount;
         `;
-        const values = [name, description, amount, tenant_id]; // Add tenant_id to values
+        const values = [name, description, amount, tenant]; 
         const { rows } = await db.query(query, values);
         return rows[0];
     }
@@ -67,10 +67,10 @@ class Tax {
      * Updates an existing tax for a specific tenant.
      * @param {number|string} id - The ID of the tax to update.
      * @param {Object} taxData - The data to update.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the updated tax object or undefined if not found.
      */
-    static async update(id, taxData, tenantId) { // Added tenantId parameter
+    static async update(id, taxData, tenant) { // Added tenant parameter
         const { name, description, amount } = taxData;
         const updates = [];
         const values = [];
@@ -98,14 +98,14 @@ class Tax {
             return null; // No fields to update
         }
 
-        // Add id and tenantId to values for WHERE clause
+        // Add id and tenant to values for WHERE clause
         values.push(id);
-        values.push(tenantId);
+        values.push(tenant);
 
         const query = `
             UPDATE public.tax
             SET ${updates.join(', ')}
-            WHERE id = $${paramIndex} AND tenant_id = $${paramIndex + 1} -- Filter by ID AND tenant_id
+            WHERE id = $${paramIndex} AND tenant = $${paramIndex + 1} -- Filter by ID AND tenant
             RETURNING id, name, description, amount;
         `;
 
@@ -116,16 +116,16 @@ class Tax {
     /**
      * Deletes a tax for a specific tenant.
      * @param {number|string} id - The ID of the tax to delete.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the deleted tax object or undefined if not found.
      */
-    static async delete(id, tenantId) { // Added tenantId parameter
+    static async delete(id, tenant) { // Added tenant parameter
         const query = `
             DELETE FROM public.tax
-            WHERE id = $1 AND tenant_id = $2 -- Filter by ID AND tenant_id
+            WHERE id = $1 AND tenant = $2 -- Filter by ID AND tenant
             RETURNING id;
         `;
-        const { rows } = await db.query(query, [id, tenantId]); // Pass id and tenantId
+        const { rows } = await db.query(query, [id, tenant]); // Pass id and tenant
         return rows[0];
     }
 }

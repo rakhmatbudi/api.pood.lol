@@ -4,7 +4,7 @@ const db = require('../config/db');
 class OrderItem {
   // All methods now accept a 'tenant' argument.
   // This 'tenant' value should be passed from your authentication/authorization middleware
-  // in your controllers (e.g., req.user.tenantId or req.headers['x-tenant-id'])
+  // in your controllers (e.g., req.user.tenant or req.headers['x-tenant-id'])
 
   static async create(orderItemData) {
     const {

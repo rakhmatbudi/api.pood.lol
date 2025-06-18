@@ -82,9 +82,6 @@ exports.createOrder = async (req, res) => {
         };
         // Or, more succinctly: const newOrderData = { ...req.body, tenant: tenantId };
 
-        console.log("Incoming request body:", req.body); // Log client-sent body
-        console.log("Data sent to model:", newOrderData); // Log data including tenantId
-
         const newOrder = await Order.create(newOrderData);
         res.status(201).json({ status: 'success', data: newOrder });
     } catch (error) {
@@ -276,95 +273,80 @@ exports.getOpenOrdersBySession = async (req, res) => {
 };
 
 exports.addOrderItem = async (req, res) => {
-  const { orderId } = req.params;
-  const tenantId = req.tenantId; // Get tenant ID
-  if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-  const orderItemData = { ...req.body, order_id: orderId, tenant: tenantId };
+    const { orderId } = req.params;
+    const tenantId = req.tenantId;
+    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const orderItemData = { ...req.body, order_id: orderId, tenant: tenantId };
 
-  try {
-    // Check if the order exists for THIS TENANT
-    const order = await Order.findById(orderId, tenantId);
-    if (!order) {
-      return res.status(404).json({ status: 'error', message: 'Order not found' });
+    try {
+        // Check if the order exists for THIS TENANT
+        const order = await Order.findById(orderId, tenantId);
+        if (!order) {
+            return res.status(404).json({ status: 'error', message: 'Order not found' });
+        }
+
+        // Create the new order item
+        const newOrderItem = await OrderItem.create(orderItemData);
+
+        // --- Refinement #2: Recalculate and update the order's totals using the model's dedicated method ---
+        // This assumes your Order model has a method like `updateOrderTotalServiceChargeAndTax`
+        // that handles summing up order items, applying service charges, and taxes.
+        const updatedOrder = await Order.updateOrderTotalServiceChargeAndTax(orderId, tenantId);
+
+        res.status(201).json({ status: 'success', data: { order: updatedOrder, orderItem: newOrderItem } });
+    } catch (error) {
+        console.error('Error adding order item and updating total:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to add order item and update total' });
     }
-
-    // Create the new order item
-    const newOrderItem = await OrderItem.create(orderItemData);
-
-    // Recalculate the total amount for the order
-    const orderItems = await OrderItem.findAllByOrderId(orderId, tenantId);
-    let newTotalAmount = 0;
-    if (orderItems && orderItems.length > 0) {
-      newTotalAmount = orderItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
-    }
-
-    // Update the order's total_amount
-    const updatedOrder = await Order.update(orderId, { total_amount: newTotalAmount, tenant: tenantId });
-
-    res.status(201).json({ status: 'success', data: { order: updatedOrder, orderItem: newOrderItem } });
-  } catch (error) {
-    console.error('Error adding order item and updating total:', error);
-    res.status(500).json({ status: 'error', message: 'Failed to add order item and update total' });
-  }
 };
 
 exports.updateOrderItemStatus = async (req, res) => {
-  console.log("updating order item");
-  const { orderId, itemId } = req.params;
-  const tenantId = req.tenantId; // Get tenant ID
-  if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-  const { status } = req.body; // Expecting only 'status' in the request body
+    // console.log("updating order item"); // This log can be removed in production
+    const { orderId, itemId } = req.params;
+    const tenantId = req.tenantId; // Get tenant ID
+    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const { status } = req.body; // Expecting only 'status' in the request body
 
-  try {
-    // 1. Validate the new status
-    // Define your allowed statuses for an order item here
-    const allowedStatuses = ['new', 'preparing', 'ready', 'served', 'cancelled', 'returned'];
-    if (!status || !allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        status: 'error',
-        message: `Invalid status provided. Status must be one of: ${allowedStatuses.join(', ')}`
-      });
+    try {
+        // 1. Validate the new status
+        // Define your allowed statuses for an order item here
+        const allowedStatuses = ['new', 'preparing', 'ready', 'served', 'cancelled', 'returned'];
+        if (!status || !allowedStatuses.includes(status)) {
+            return res.status(400).json({
+                status: 'error',
+                message: `Invalid status provided. Status must be one of: ${allowedStatuses.join(', ')}`
+            });
+        }
+
+        // 2. Verify the order exists (optional but good practice to ensure integrity) for THIS TENANT
+        const order = await Order.findById(orderId, tenantId);
+        if (!order) {
+            return res.status(404).json({ status: 'error', message: 'Order not found' });
+        }
+
+        // 3. Update only the status of the order item
+        const updatedOrderItem = await OrderItem.update(itemId, { status, tenant: tenantId });
+
+        if (!updatedOrderItem) {
+            return res.status(404).json({ status: 'error', message: 'Order item not found or status is the same' });
+        }
+
+        // --- Refinement #3: Recalculate total amount if status changes affect pricing ---
+        // If your business logic dictates that certain statuses (like 'cancelled' or 'returned')
+        // should remove the item's cost from the order total, then this recalculation is necessary.
+        const updatedOrder = await Order.updateOrderTotalServiceChargeAndTax(orderId, tenantId);
+
+
+        res.status(200).json({
+            status: 'success',
+            // You might choose to return both the updated order item and the recalculated order here
+            data: { orderItem: updatedOrderItem, order: updatedOrder },
+            message: `Order item ${itemId} status updated to '${status}' successfully, and order total recalculated.`
+        });
+    } catch (error) {
+        console.error(`Error updating status for order item ${itemId} in order ${orderId}:`, error);
+        res.status(500).json({ status: 'error', message: 'Failed to update order item status' });
     }
-
-    // 2. Verify the order exists (optional but good practice to ensure integrity) for THIS TENANT
-    const order = await Order.findById(orderId, tenantId);
-    if (!order) {
-      return res.status(404).json({ status: 'error', message: 'Order not found' });
-    }
-
-    // 3. Update only the status of the order item
-    // The OrderItem.update method should be capable of partial updates
-    const updatedOrderItem = await OrderItem.update(itemId, { status, tenant: tenantId });
-
-    if (!updatedOrderItem) {
-      return res.status(404).json({ status: 'error', message: 'Order item not found or status is the same' });
-    }
-
-    // 4. Optionally, recalculate total amount if status changes affect pricing (e.g., 'cancelled' items don't count)
-    // For a status-only update, typically total_amount wouldn't change unless your business logic dictates
-    // that certain statuses (like 'cancelled') remove the item's cost from the order total.
-    // If that's the case, uncomment and adjust the following block:
-    /*
-    const orderItems = await OrderItem.findAllByOrderId(orderId);
-    let newTotalAmount = 0;
-    if (orderItems && orderItems.length > 0) {
-      newTotalAmount = orderItems.reduce((sum, item) => {
-        // Only sum if item status is NOT 'cancelled' or similar
-        return item.status !== 'cancelled' ? sum + parseFloat(item.total_price || 0) : sum;
-      }, 0);
-    }
-    await Order.update(orderId, { total_amount: newTotalAmount });
-    */
-
-    res.status(200).json({
-      status: 'success',
-      data: updatedOrderItem,
-      message: `Order item ${itemId} status updated to '${status}' successfully.`
-    });
-  } catch (error) {
-    console.error(`Error updating status for order item ${itemId} in order ${orderId}:`, error);
-    res.status(500).json({ status: 'error', message: 'Failed to update order item status' });
-  }
 };
 
 // --- New Controller Method for /orders/sessions/:sessionId ---

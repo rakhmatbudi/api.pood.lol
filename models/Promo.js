@@ -4,10 +4,10 @@ const db = require('../config/db');
 class Promo {
     /**
      * Get all promos for a specific tenant, optionally including associated items.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Array>} A promise that resolves to an array of promo objects.
      */
-    static async findAll(tenantId) { // Added tenantId parameter
+    static async findAll(tenant) { // Added tenant parameter
         const query = `
             SELECT
                 p.promo_id,
@@ -34,27 +34,27 @@ class Promo {
             FROM
                 promo p
             LEFT JOIN
-                promo_item pi ON p.promo_id = pi.promo_id AND pi.tenant_id = $1 -- Join condition for promo_item with tenant_id
+                promo_item pi ON p.promo_id = pi.promo_id AND pi.tenant = $1 -- Join condition for promo_item with tenant
             LEFT JOIN
-                menu_items mi ON pi.item_id = mi.id AND mi.tenant_id = $1 -- Join condition for menu_items with tenant_id
+                menu_items mi ON pi.item_id = mi.id AND mi.tenant = $1 -- Join condition for menu_items with tenant
             WHERE
-                p.tenant_id = $1 -- Filter promos by tenant_id
+                p.tenant = $1 -- Filter promos by tenant
             GROUP BY
                 p.promo_id
             ORDER BY
                 p.promo_id DESC;
         `;
-        const { rows } = await db.query(query, [tenantId]); // Pass tenantId to query
+        const { rows } = await db.query(query, [tenant]); // Pass tenant to query
         return rows;
     }
 
     /**
      * Get a promo by ID for a specific tenant, including associated items.
      * @param {string} id - The ID of the promo.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the promo object or undefined if not found.
      */
-    static async findById(id, tenantId) { // Added tenantId parameter
+    static async findById(id, tenant) { // Added tenant parameter
         const query = `
             SELECT
                 p.promo_id,
@@ -81,21 +81,21 @@ class Promo {
             FROM
                 promo p
             LEFT JOIN
-                promo_item pi ON p.promo_id = pi.promo_id AND pi.tenant_id = $2 -- Join condition for promo_item with tenant_id
+                promo_item pi ON p.promo_id = pi.promo_id AND pi.tenant = $2 -- Join condition for promo_item with tenant
             LEFT JOIN
-                menu_items mi ON pi.item_id = mi.id AND mi.tenant_id = $2 -- Join condition for menu_items with tenant_id
+                menu_items mi ON pi.item_id = mi.id AND mi.tenant = $2 -- Join condition for menu_items with tenant
             WHERE
-                p.promo_id = $1 AND p.tenant_id = $2 -- Filter by promo_id AND tenant_id
+                p.promo_id = $1 AND p.tenant = $2 -- Filter by promo_id AND tenant
             GROUP BY
                 p.promo_id;
         `;
-        const { rows } = await db.query(query, [id, tenantId]); // Pass id and tenantId
+        const { rows } = await db.query(query, [id, tenant]); // Pass id and tenant
         return rows[0];
     }
 
     /**
      * Create a new promo and optionally link items for a specific tenant.
-     * @param {Object} promoData - The data for the new promo, including tenant_id.
+     * @param {Object} promoData - The data for the new promo, including tenant.
      * @returns {Promise<Object>} A promise that resolves to the newly created promo object with items.
      */
     static async create(promoData) {
@@ -111,7 +111,7 @@ class Promo {
             discount_amount,
             is_active = false,
             item_ids = [], // Array of menu_item_ids
-            tenant_id // Expect tenant_id in promoData
+            tenant // Expect tenant in promoData
         } = promoData;
 
         const client = await db.connect();
@@ -122,9 +122,9 @@ class Promo {
                 INSERT INTO promo (
                     promo_name, promo_description, start_date, end_date,
                     term_and_condition, picture, type, discount_type,
-                    discount_amount, is_active, tenant_id -- Add tenant_id here
+                    discount_amount, is_active, tenant 
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) -- Add $11 for tenant_id
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) -- Add $11 for tenant
                 RETURNING promo_id;
             `;
             const promoValues = [
@@ -138,21 +138,21 @@ class Promo {
                 discount_type,
                 discount_amount,
                 is_active,
-                tenant_id // Pass tenant_id here
+                tenant // Pass tenant here
             ];
             const { rows: promoRows } = await client.query(promoQuery, promoValues);
             const newPromoId = promoRows[0].promo_id;
 
             if (item_ids && item_ids.length > 0) {
                 const itemInsertPromises = item_ids.map(itemId => {
-                    // Insert promo_item with tenant_id
-                    return client.query('INSERT INTO promo_item (promo_id, item_id, tenant_id) VALUES ($1, $2, $3);', [newPromoId, itemId, tenant_id]);
+                    // Insert promo_item with tenant_
+                    return client.query('INSERT INTO promo_item (promo_id, item_id, tenant) VALUES ($1, $2, $3);', [newPromoId, itemId, tenant]);
                 });
                 await Promise.all(itemInsertPromises);
             }
 
             await client.query('COMMIT');
-            return this.findById(newPromoId, tenant_id); // Fetch the full promo object with items using tenantId
+            return this.findById(newPromoId, tenant); // Fetch the full promo object with items using tenant
         } catch (error) {
             await client.query('ROLLBACK');
             console.error('Error creating promo:', error);
@@ -166,10 +166,10 @@ class Promo {
      * Update an existing promo and its associated items for a specific tenant.
      * @param {string} id - The ID of the promo to update.
      * @param {Object} promoData - The data to update.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the updated promo object or undefined if not found.
      */
-    static async update(id, promoData, tenantId) { // Added tenantId parameter
+    static async update(id, promoData, tenant) { // Added tenant parameter
         const {
             promo_name,
             promo_description,
@@ -207,29 +207,29 @@ class Promo {
                 const promoQuery = `
                     UPDATE promo
                     SET ${updates.join(', ')}
-                    WHERE promo_id = $${paramIndex} AND tenant_id = $${paramIndex + 1} -- Filter by tenant_id
+                    WHERE promo_id = $${paramIndex} AND tenant = $${paramIndex + 1} -- Filter by tenant
                     RETURNING promo_id;
                 `;
                 values.push(id);
-                values.push(tenantId); // Add tenantId to values for the WHERE clause
+                values.push(tenant); // Add tenant to values for the WHERE clause
                 await client.query(promoQuery, values);
             }
 
             // Handle promo_items update: Delete existing and insert new ones
             if (item_ids !== undefined) { // Check if item_ids was explicitly passed
                 // Delete existing promo_item associations for this promo and tenant
-                await client.query('DELETE FROM promo_item WHERE promo_id = $1 AND tenant_id = $2;', [id, tenantId]);
+                await client.query('DELETE FROM promo_item WHERE promo_id = $1 AND tenant = $2;', [id, tenant]);
                 if (item_ids.length > 0) {
                     const itemInsertPromises = item_ids.map(itemId => {
-                        // Insert new promo_item associations with tenant_id
-                        return client.query('INSERT INTO promo_item (promo_id, item_id, tenant_id) VALUES ($1, $2, $3);', [id, itemId, tenantId]);
+                        // Insert new promo_item associations with tenant
+                        return client.query('INSERT INTO promo_item (promo_id, item_id, tenant) VALUES ($1, $2, $3);', [id, itemId, tenant]);
                     });
                     await Promise.all(itemInsertPromises);
                 }
             }
 
             await client.query('COMMIT');
-            return this.findById(id, tenantId); // Return the updated full promo object with items using tenantId
+            return this.findById(id, tenant); // Return the updated full promo object with items using tenant
         } catch (error) {
             await client.query('ROLLBACK');
             console.error('Error updating promo:', error);
@@ -242,20 +242,20 @@ class Promo {
     /**
      * Delete a promo and its associated items for a specific tenant.
      * @param {string} id - The ID of the promo to delete.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the deleted promo object or undefined if not found.
      */
-    static async delete(id, tenantId) { // Added tenantId parameter
+    static async delete(id, tenant) { // Added tenant parameter
         const client = await db.connect();
         try {
             await client.query('BEGIN');
 
-            // Delete associated promo_items first due to foreign key constraint, filtered by tenant_id
-            await client.query('DELETE FROM promo_item WHERE promo_id = $1 AND tenant_id = $2;', [id, tenantId]);
+            // Delete associated promo_items first due to foreign key constraint, filtered by tenant
+            await client.query('DELETE FROM promo_item WHERE promo_id = $1 AND tenant = $2;', [id, tenant]);
 
-            // Delete the promo itself, filtered by tenant_id
-            const query = 'DELETE FROM promo WHERE promo_id = $1 AND tenant_id = $2 RETURNING *;';
-            const { rows } = await client.query(query, [id, tenantId]);
+            // Delete the promo itself, filtered by tenant
+            const query = 'DELETE FROM promo WHERE promo_id = $1 AND tenant = $2 RETURNING *;';
+            const { rows } = await client.query(query, [id, tenant]);
 
             await client.query('COMMIT');
             return rows[0];

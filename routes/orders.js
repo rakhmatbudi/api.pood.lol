@@ -8,6 +8,13 @@ const Order = require('../models/Order'); // Import the Order model here to dire
 
 const router = express.Router();
 
+// Add a log within the router, *after* getTempTenantId has theoretically run
+// This will confirm what tenantId looks like right before the controller
+router.use(getTempTenantId, (req, res, next) => {
+    console.log(`[ORDERS ROUTER MW] req.tenantId (after getTempTenantId): ${req.tenantId}`);
+    next();
+});
+
 router.get('/', getTempTenantId, orderController.getAllOrders);
 
 // Route for creating new ORDER

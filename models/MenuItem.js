@@ -4,13 +4,13 @@ const MenuItemVariant = require('./MenuItemVariant'); // Assuming this also beco
 
 class MenuItem {
     // Multi-tenant Ready: findAll
-    static async findAll(tenantId, includeInactive = false) {
-        if (!tenantId) {
+    static async findAll(tenant, includeInactive = false) {
+        if (!tenant) {
             throw new Error('Tenant ID is required to find all menu items.');
         }
 
         let whereClauses = ['mi.tenant = $1']; // Start with tenant filter
-        const values = [tenantId];
+        const values = [tenant];
         let paramIndex = 2; // Next parameter index for other conditions
 
         if (!includeInactive) {
@@ -85,9 +85,9 @@ class MenuItem {
     }
 
     // Multi-tenant Ready: findById
-    static async findById(id, tenantId) {
-        if (!tenantId) {
-            throw new Error('Tenant ID is required to find a menu item by ID.');
+    static async findById(id, tenant) {
+        if (!tenant) {
+            throw new Error('Tenant is required to find a menu item by ID.');
         }
 
         const query = `
@@ -109,25 +109,25 @@ class MenuItem {
             JOIN menu_categories mc ON mi.category_id = mc.id AND mi.tenant = mc.tenant -- Join on tenant
             WHERE mi.id = $1 AND mi.tenant = $2; -- Filter by tenant
         `;
-        const { rows: menuItemRows } = await db.query(query, [id, tenantId]);
+        const { rows: menuItemRows } = await db.query(query, [id, tenant]);
         const menuItem = menuItemRows[0];
 
         if (menuItem) {
-            // Pass tenantId to MenuItemVariant method
-            const variants = await MenuItemVariant.findByMenuItemId(menuItem.id, tenantId);
+            // Pass tenant to MenuItemVariant method
+            const variants = await MenuItemVariant.findByMenuItemId(menuItem.id, tenant);
             return { ...menuItem, variants };
         }
         return undefined;
     }
 
     // Multi-tenant Ready: findByCategoryId
-    static async findByCategoryId(categoryId, tenantId, includeInactive = false) {
-        if (!tenantId) {
+    static async findByCategoryId(categoryId, tenant, includeInactive = false) {
+        if (!tenant) {
             throw new Error('Tenant ID is required to find menu items by category ID.');
         }
 
         let whereClauses = [`mi.category_id = $1`, `mi.tenant = $2`];
-        const values = [categoryId, tenantId];
+        const values = [categoryId, tenant];
         let paramIndex = 3;
 
         if (!includeInactive) {
@@ -220,8 +220,8 @@ class MenuItem {
     }
 
     // Multi-tenant Ready: update
-    static async update(id, menuItemData, tenantId) {
-        if (!tenantId) {
+    static async update(id, menuItemData, tenant) {
+        if (!tenant) {
             throw new Error('Tenant ID is required to update a menu item.');
         }
 
@@ -239,18 +239,18 @@ class MenuItem {
             WHERE id = $7 AND tenant = $8 -- Filter by tenant
             RETURNING *;
         `;
-        const values = [name, description, price, category_id, is_active, image_path, id, tenantId];
+        const values = [name, description, price, category_id, is_active, image_path, id, tenant];
         const { rows } = await db.query(query, values);
         return rows[0];
     }
 
     // Multi-tenant Ready: delete
-    static async delete(id, tenantId) {
-        if (!tenantId) {
+    static async delete(id, tenan) {
+        if (!tenant) {
             throw new Error('Tenant ID is required to delete a menu item.');
         }
         const query = 'DELETE FROM menu_items WHERE id = $1 AND tenant = $2 RETURNING *'; // Filter by tenant
-        const { rows } = await db.query(query, [id, tenantId]);
+        const { rows } = await db.query(query, [id, tenant]);
         return rows[0];
     }
 }

@@ -17,8 +17,8 @@ class CashierSession {
         const result = await db.query(
             `SELECT cs.*, TO_CHAR(cs.opened_at, 'DD/MM/YYYY HH:MI') as cashier_time, u.name as cashier_name
              FROM cashier_sessions cs
-             LEFT JOIN users u ON cs.user_id = u.id AND u.tenant_id = $3 -- Ensure users also belong to the tenant
-             WHERE cs.tenant_id = $3 -- Filter sessions by tenant_id
+             LEFT JOIN users u ON cs.user_id = u.id AND u.tenant = $3 -- Ensure users also belong to the tenant
+             WHERE cs.tenant = $3 -- Filter sessions by tenant_id
              ORDER BY cs.created_at DESC
              LIMIT $1 OFFSET $2`,
             [limit, offset, tenantId] // Pass tenantId as a parameter
@@ -83,8 +83,8 @@ class CashierSession {
                 `SELECT u.id user_id, u.name as cashier_name, cs.id session_id,
                         cs.opening_amount, cs.notes, cs.opened_at
                  FROM cashier_sessions cs
-                 INNER JOIN users u ON u.id = cs.user_id AND u.tenant_id = $1 -- Join with users filtered by tenant_id
-                 WHERE cs.closed_at IS NULL AND cs.tenant_id = $1`, // Filter cashier_sessions by tenant_id
+                 INNER JOIN users u ON u.id = cs.user_id AND u.tenant = $1 -- Join with users filtered by tenant_id
+                 WHERE cs.closed_at IS NULL AND cs.tenant = $1`, // Filter cashier_sessions by tenant_id
                 [tenantId]
             );
 

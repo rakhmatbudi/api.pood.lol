@@ -14,17 +14,17 @@ class CashierSessionPayment {
    * @param {number} paymentData.expected_amount - The expected amount.
    * @param {number} paymentData.actual_amount - The actual amount.
    * @param {string} [paymentData.notes] - Optional notes.
-   * @param {string} tenantId - The ID of the tenant.
+   * @param {string} tenant - The ID of the tenant.
    * @returns {Promise<Object>} - A promise resolving to the newly created payment record.
    */
-  static async create(paymentData, tenantId) {
+  static async create(paymentData, tenant) {
     const { cashier_session_id, payment_mode_id, expected_amount, actual_amount, notes } = paymentData;
     const query = `
-      INSERT INTO cashier_session_payments (cashier_session_id, payment_mode_id, expected_amount, actual_amount, notes, created_at, updated_at, tenant_id)
+      INSERT INTO cashier_session_payments (cashier_session_id, payment_mode_id, expected_amount, actual_amount, notes, created_at, updated_at, tenant)
       VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
       RETURNING *
     `;
-    const values = [cashier_session_id, payment_mode_id, expected_amount, actual_amount, notes, tenantId];
+    const values = [cashier_session_id, payment_mode_id, expected_amount, actual_amount, notes, tenant];
     try {
       const client = await db.connect(); // Get a client from the pool
       try {
@@ -42,16 +42,16 @@ class CashierSessionPayment {
   /**
    * Retrieves a CashierSessionPayment record by its ID and tenant.
    * @param {number} id - The ID of the CashierSessionPayment record to retrieve.
-   * @param {string} tenantId - The ID of the tenant.
+   * @param {string} tenant - The ID of the tenant.
    * @returns {Promise<Object | null>} - A promise resolving to the retrieved record, or null if not found.
    */
-  static async getById(id, tenantId) {
+  static async getById(id, tenant) {
     const query = `
         SELECT *
         FROM cashier_session_payments
-        WHERE id = $1 AND tenant_id = $2
+        WHERE id = $1 AND tenant = $2
     `;
-    const values = [id, tenantId];
+    const values = [id, tenant];
     try {
       const client = await db.connect();
       try {
@@ -69,17 +69,17 @@ class CashierSessionPayment {
   /**
    * Retrieves all CashierSessionPayment records associated with a given cashier session ID and tenant.
    * @param {number} sessionId - The ID of the cashier session.
-   * @param {string} tenantId - The ID of the tenant.
+   * @param {string} tenant - The ID of the tenant.
    * @returns {Promise<Array<Object>>} - A promise resolving to an array of payment records.
    */
-  static async getBySessionId(sessionId, tenantId) {
+  static async getBySessionId(sessionId, tenant) {
     const query = `
         SELECT csp.*, pm.description as payment_mode
         FROM cashier_session_payments csp
         JOIN payment_modes pm ON csp.payment_mode_id = pm.id
-        WHERE csp.cashier_session_id = $1 AND csp.tenant_id = $2
+        WHERE csp.cashier_session_id = $1 AND csp.tenant = $2
     `;
-    const values = [sessionId, tenantId];
+    const values = [sessionId, tenant];
     try {
       const client = await db.connect();
       try {
@@ -95,7 +95,7 @@ class CashierSessionPayment {
   }
 
   // Add other static methods as needed (e.g., for updating, deleting, etc.)
-  // Remember to include tenantId in all future methods as well!
+  // Remember to include tenant in all future methods as well!
 }
 
 // Export the entire class

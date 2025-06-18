@@ -4,30 +4,30 @@ const db = require('../config/db');
 class MenuCategory {
     /**
      * Retrieves all displayed menu categories for a specific tenant.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Array>} A promise that resolves to an array of menu categories.
      */
-    static async findAll(tenantId) {
-        const query = 'SELECT * FROM menu_categories WHERE is_displayed = TRUE AND tenant_id = $1';
-        const { rows } = await db.query(query, [tenantId]);
+    static async findAll(tenant) {
+        const query = 'SELECT * FROM menu_categories WHERE is_displayed = TRUE AND tenant = $1';
+        const { rows } = await db.query(query, [tenant]);
         return rows;
     }
 
     /**
      * Retrieves a specific displayed menu category by ID for a specific tenant.
      * @param {string} id - The ID of the menu category.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the menu category object or undefined if not found.
      */
-    static async findById(id, tenantId) {
-        const query = 'SELECT * FROM menu_categories WHERE id = $1 AND is_displayed = TRUE AND tenant_id = $2';
-        const { rows } = await db.query(query, [id, tenantId]);
+    static async findById(id, tenant) {
+        const query = 'SELECT * FROM menu_categories WHERE id = $1 AND is_displayed = TRUE AND tenant = $2';
+        const { rows } = await db.query(query, [id, tenant]);
         return rows[0];
     }
 
     /**
      * Creates a new menu category.
-     * @param {Object} categoryData - The data for the new menu category, including tenant_id.
+     * @param {Object} categoryData - The data for the new menu category, including tenant.
      * @returns {Promise<Object>} A promise that resolves to the newly created menu category object.
      */
     static async create(categoryData) {
@@ -40,14 +40,14 @@ class MenuCategory {
             sku_id,
             is_highlight,
             is_display_for_self_order,
-            tenant_id // New field for multi-tenancy
+            tenant // New field for multi-tenancy
         } = categoryData;
 
         const query = `
             INSERT INTO menu_categories (
                 name, description, is_displayed, display_picture,
                 menu_category_group, sku_id, is_highlight, is_display_for_self_order,
-                tenant_id
+                tenant
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
@@ -61,7 +61,7 @@ class MenuCategory {
             sku_id,
             is_highlight,
             is_display_for_self_order,
-            tenant_id // Add tenant_id to values
+            tenant // Add tenant to values
         ];
         const { rows } = await db.query(query, values);
         return rows[0];
@@ -71,10 +71,10 @@ class MenuCategory {
      * Updates an existing menu category for a specific tenant.
      * @param {string} id - The ID of the menu category to update.
      * @param {Object} categoryData - The data to update.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the updated menu category object or undefined if not found.
      */
-    static async update(id, categoryData, tenantId) { // Add tenantId parameter
+    static async update(id, categoryData, tenant) { // Add tenant parameter
         const fields = [];
         const values = [];
         let paramCount = 1;
@@ -142,18 +142,18 @@ class MenuCategory {
              // If the controller expects null/undefined for "not found", returning it is fine.
              // If it expects an error for "no fields to update", then re-throw or handle.
             // For multi-tenancy, it's more about 'found and no changes vs not found at all'.
-            // For this model, if 'id' and 'tenantId' match but no fields, it'll still return the existing row with updated_at.
+            // For this model, if 'id' and 'tenant' match but no fields, it'll still return the existing row with updated_at.
             // It might be better to return null/undefined if the specific tenant+id combination isn't found.
         }
 
-        // Add ID and tenantId to values for the WHERE clause
+        // Add ID and tenant to values for the WHERE clause
         values.push(id);
-        values.push(tenantId); // Add tenantId to values
+        values.push(tenant); // Add tenant to values
 
         const query = `
             UPDATE menu_categories
             SET ${fields.join(', ')}
-            WHERE id = $${paramCount} AND tenant_id = $${paramCount + 1}
+            WHERE id = $${paramCount} AND tenant = $${paramCount + 1}
             RETURNING *
         `;
 
@@ -164,17 +164,17 @@ class MenuCategory {
     /**
      * Soft deletes a menu category (sets is_displayed to FALSE) for a specific tenant.
      * @param {string} id - The ID of the menu category to soft delete.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the soft-deleted menu category object or undefined if not found.
      */
-    static async softDelete(id, tenantId) { // Add tenantId parameter
+    static async softDelete(id, tenant) { // Add tenant parameter
         const query = `
             UPDATE menu_categories
             SET is_displayed = FALSE, updated_at = NOW()
-            WHERE id = $1 AND tenant_id = $2
+            WHERE id = $1 AND tenant = $2
             RETURNING *
         `;
-        const { rows } = await db.query(query, [id, tenantId]);
+        const { rows } = await db.query(query, [id, tenant]);
         return rows[0];
     }
 
@@ -182,12 +182,12 @@ class MenuCategory {
      * Hard deletes a menu category from the database for a specific tenant.
      * Use with caution as this permanently removes the record.
      * @param {string} id - The ID of the menu category to delete.
-     * @param {string} tenantId - The ID of the tenant.
+     * @param {string} tenant - The ID of the tenant.
      * @returns {Promise<Object|undefined>} A promise that resolves to the deleted menu category object or undefined if not found.
      */
-    static async delete(id, tenantId) { // Add tenantId parameter
-        const query = 'DELETE FROM menu_categories WHERE id = $1 AND tenant_id = $2 RETURNING *';
-        const { rows } = await db.query(query, [id, tenantId]);
+    static async delete(id, tenant) { // Add tenant parameter
+        const query = 'DELETE FROM menu_categories WHERE id = $1 AND tenant = $2 RETURNING *';
+        const { rows } = await db.query(query, [id, tenant]);
         return rows[0];
     }
 }
