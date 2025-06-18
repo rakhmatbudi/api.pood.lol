@@ -3,10 +3,38 @@ const MenuItem = require('../models/MenuItem');
 const cloudinary = require('../config/cloudinary');
 const fs = require('fs/promises');
 
+// Helper function to extract Cloudinary public ID, adjusted for tenant-specific folders
+const getCloudinaryPublicId = (imageUrl, tenantId) => {
+    if (!imageUrl || !tenantId) return null;
+    try {
+        // Construct the expected base folder path for this tenant
+        const tenantFolderPath = `Pood/${tenantId}/Product/`;
+        // Find the index of the tenant-specific folder path in the URL
+        const folderIndex = imageUrl.indexOf(tenantFolderPath);
+        if (folderIndex === -1) {
+            console.warn(`Cloudinary URL '${imageUrl}' does not contain expected tenant folder '${tenantFolderPath}'`);
+            return null;
+        }
+        // Extract the part of the URL that follows the tenant-specific folder path
+        const publicIdWithExtension = imageUrl.substring(folderIndex + tenantFolderPath.length);
+        // Remove the file extension
+        return publicIdWithExtension.split('.')[0];
+    } catch (e) {
+        console.error('Error extracting Cloudinary public ID:', e);
+        return null;
+    }
+};
+
 exports.getAllMenuItems = async (req, res) => {
     try {
+        const tenantId = req.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
+        }
+
         const includeInactive = req.query.includeInactive === 'true';
-        const menuItems = await MenuItem.findAll(includeInactive);
+        // Pass tenantId to the model method
+        const menuItems = await MenuItem.findAll(tenantId, includeInactive);
         res.status(200).json({ status: 'success', data: menuItems });
     } catch (error) {
         console.error('Error fetching menu items:', error);
@@ -17,7 +45,13 @@ exports.getAllMenuItems = async (req, res) => {
 exports.getMenuItemById = async (req, res) => {
     const { id } = req.params;
     try {
-        const menuItem = await MenuItem.findById(id);
+        const tenantId = req.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
+        }
+
+        // Pass tenantId to the model method
+        const menuItem = await MenuItem.findById(id, tenantId);
         if (menuItem) {
             res.status(200).json({ status: 'success', data: menuItem });
         } else {
@@ -33,8 +67,14 @@ exports.getMenuItemById = async (req, res) => {
 exports.getMenuItemsByCategoryId = async (req, res) => {
     const { categoryId } = req.params;
     try {
+        const tenantId = req.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
+        }
+
         const includeInactive = req.query.includeInactive === 'true';
-        const menuItems = await MenuItem.findByCategoryId(categoryId, includeInactive);
+        // Pass tenantId to the model method
+        const menuItems = await MenuItem.findByCategoryId(categoryId, tenantId, includeInactive);
         res.status(200).json({ status: 'success', data: menuItems });
     } catch (error) {
         console.error(`Error fetching menu items for category ${categoryId}:`, error);
@@ -42,27 +82,32 @@ exports.getMenuItemsByCategoryId = async (req, res) => {
     }
 };
 
-
 exports.createMenuItem = async (req, res) => {
     let image_path = null;
     const localFilePath = req.file ? req.file.path : null;
 
     try {
+        const tenantId = req.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
+        }
+
         const { name, description, price, category_id, is_active } = req.body;
 
         if (localFilePath) {
             try {
+                // Cloudinary folder is now tenant-specific
                 const uploadResult = await cloudinary.uploader.upload(localFilePath, {
-                    folder: 'Pood/00000001/Product',
+                    folder: `Pood/${tenantId}/Product`, // Dynamic folder based on tenantId
                     public_id: `${name.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`
                 });
                 image_path = uploadResult.secure_url;
             } catch (uploadError) {
                 console.error('Cloudinary upload error:', uploadError);
-                return res.status(500).json({ 
-                    status: 'error', 
-                    message: 'Failed to upload image to Cloudinary', 
-                    error: uploadError.message 
+                return res.status(500).json({
+                    status: 'error',
+                    message: 'Failed to upload image to Cloudinary',
+                    error: uploadError.message
                 });
             } finally {
                 try {
@@ -78,16 +123,17 @@ exports.createMenuItem = async (req, res) => {
             description,
             price,
             category_id: parseInt(category_id),
-            // Fix: Handle both boolean and string values for is_active
             is_active: typeof is_active === 'boolean' ? is_active : is_active === 'true',
-            image_path
+            image_path,
+            tenant: tenantId // Add tenantId to the data for creation
         };
 
+        // Pass tenantId (contained within menuItemData) to the model method
         const newMenuItem = await MenuItem.create(menuItemData);
         res.status(201).json({ status: 'success', data: newMenuItem });
     } catch (error) {
         console.error('Error creating menu item:', error);
-        
+
         if (localFilePath) {
             try {
                 await fs.unlink(localFilePath);
@@ -95,9 +141,9 @@ exports.createMenuItem = async (req, res) => {
                 console.error('Failed to cleanup file after error:', cleanupError);
             }
         }
-        
+
         if (error.message.includes('Invalid file type') || error.message.includes('File too large')) {
-             return res.status(400).json({ status: 'error', message: error.message });
+            return res.status(400).json({ status: 'error', message: error.message });
         }
         res.status(500).json({ status: 'error', message: 'Failed to create menu item', error: error.message });
     }
@@ -109,37 +155,44 @@ exports.updateMenuItem = async (req, res) => {
     const localFilePath = req.file ? req.file.path : null;
 
     try {
+        const tenantId = req.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
+        }
+
         const { name, description, price, category_id, is_active } = req.body;
 
-        const existingMenuItem = await MenuItem.findById(id);
+        // Fetch existing menu item, ensuring it belongs to the current tenant
+        const existingMenuItem = await MenuItem.findById(id, tenantId);
         if (!existingMenuItem) {
-            return res.status(404).json({ status: 'error', message: 'Menu item not found' });
+            return res.status(404).json({ status: 'error', message: 'Menu item not found for this tenant.' });
         }
-        image_path = existingMenuItem.image_path;
+        image_path = existingMenuItem.image_path; // Keep existing image path by default
 
         if (localFilePath) {
             try {
+                // Delete old image from Cloudinary, ensure tenant-specific deletion
                 if (existingMenuItem.image_path) {
-                    const urlParts = existingMenuItem.image_path.split('/');
-                    // A more robust way to get public_id
-                    const publicId = urlParts.slice(urlParts.indexOf('upload') + 2).join('/').split('.')[0];
-                    
-                    await cloudinary.uploader.destroy(publicId).catch(err => {
-                        console.warn('Could not delete old image from Cloudinary:', err);
-                    });
+                    const publicId = getCloudinaryPublicId(existingMenuItem.image_path, tenantId);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId).catch(err => {
+                            console.warn('Could not delete old image from Cloudinary (update):', err);
+                        });
+                    }
                 }
 
+                // Upload new image to tenant-specific folder
                 const uploadResult = await cloudinary.uploader.upload(localFilePath, {
-                    folder: 'Pood/00000001/Product',
+                    folder: `Pood/${tenantId}/Product`, // Dynamic folder based on tenantId
                     public_id: `${name ? name.replace(/\s+/g, '_').toLowerCase() : id}_${Date.now()}`
                 });
                 image_path = uploadResult.secure_url;
             } catch (uploadError) {
                 console.error('Cloudinary upload error during update:', uploadError);
-                return res.status(500).json({ 
-                    status: 'error', 
-                    message: 'Failed to upload new image', 
-                    error: uploadError.message 
+                return res.status(500).json({
+                    status: 'error',
+                    message: 'Failed to upload new image',
+                    error: uploadError.message
                 });
             } finally {
                 try {
@@ -149,14 +202,14 @@ exports.updateMenuItem = async (req, res) => {
                 }
             }
         } else if (req.body.image_path === null || req.body.image_path === '') {
+            // If image_path is explicitly set to null/empty in body, delete existing
             if (existingMenuItem.image_path) {
-                const urlParts = existingMenuItem.image_path.split('/');
-                // A more robust way to get public_id
-                const publicId = urlParts.slice(urlParts.indexOf('upload') + 2).join('/').split('.')[0];
-                
-                await cloudinary.uploader.destroy(publicId).catch(err => {
-                    console.warn('Could not delete old image from Cloudinary (clear request):', err);
-                });
+                const publicId = getCloudinaryPublicId(existingMenuItem.image_path, tenantId);
+                if (publicId) {
+                    await cloudinary.uploader.destroy(publicId).catch(err => {
+                        console.warn('Could not delete old image from Cloudinary (clear request):', err);
+                    });
+                }
             }
             image_path = null;
         }
@@ -166,18 +219,18 @@ exports.updateMenuItem = async (req, res) => {
             description,
             price,
             category_id: category_id ? parseInt(category_id) : existingMenuItem.category_id,
-            // Fix: Handle both boolean and string values for is_active
-            is_active: is_active !== undefined ? 
-                (typeof is_active === 'boolean' ? is_active : is_active === 'true') : 
+            is_active: is_active !== undefined ?
+                (typeof is_active === 'boolean' ? is_active : is_active === 'true') :
                 existingMenuItem.is_active,
             image_path
         };
 
-        const updatedMenuItem = await MenuItem.update(id, menuItemData);
+        // Pass tenantId to the model method for update
+        const updatedMenuItem = await MenuItem.update(id, menuItemData, tenantId);
         res.status(200).json({ status: 'success', data: updatedMenuItem });
     } catch (error) {
         console.error('Error updating menu item:', error);
-        
+
         if (localFilePath) {
             try {
                 await fs.unlink(localFilePath);
@@ -185,7 +238,7 @@ exports.updateMenuItem = async (req, res) => {
                 console.error('Failed to cleanup file after error:', cleanupError);
             }
         }
-        
+
         res.status(500).json({ status: 'error', message: 'Failed to update menu item', error: error.message });
     }
 };
@@ -193,24 +246,37 @@ exports.updateMenuItem = async (req, res) => {
 exports.deleteMenuItem = async (req, res) => {
     const { id } = req.params;
     try {
-        const menuItem = await MenuItem.findById(id);
-        if (menuItem && menuItem.image_path) {
-            const urlParts = menuItem.image_path.split('/');
-            // A more robust way to get public_id
-            const publicId = urlParts.slice(urlParts.indexOf('upload') + 2).join('/').split('.')[0];
-            
-            try {
-                await cloudinary.uploader.destroy(publicId);
-            } catch (cloudinaryDeleteError) {
-                console.warn('Could not delete image from Cloudinary:', cloudinaryDeleteError);
+        const tenantId = req.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
+        }
+
+        // Fetch menu item, ensuring it belongs to the current tenant
+        const menuItem = await MenuItem.findById(id, tenantId);
+        if (!menuItem) {
+            return res.status(404).json({ status: 'error', message: 'Menu item not found for this tenant.' });
+        }
+
+        // Delete image from Cloudinary if it exists, ensuring tenant-specific deletion
+        if (menuItem.image_path) {
+            const publicId = getCloudinaryPublicId(menuItem.image_path, tenantId);
+            if (publicId) {
+                try {
+                    await cloudinary.uploader.destroy(publicId);
+                } catch (cloudinaryDeleteError) {
+                    console.warn('Could not delete image from Cloudinary:', cloudinaryDeleteError);
+                }
             }
         }
 
-        const deletedMenuItem = await MenuItem.delete(id);
+        // Delete menu item from DB, ensuring tenant-specific deletion
+        const deletedMenuItem = await MenuItem.delete(id, tenantId);
         if (deletedMenuItem) {
             res.status(200).json({ status: 'success', data: deletedMenuItem });
         } else {
-            res.status(404).json({ status: 'error', message: 'Menu item not found' });
+            // This else block might not be reached if findById already caught it,
+            // but kept for robustness if DB delete fails for other reasons (e.g., integrity constraint)
+            res.status(404).json({ status: 'error', message: 'Menu item not found or could not be deleted.' });
         }
     } catch (error) {
         console.error('Error deleting menu item:', error);
