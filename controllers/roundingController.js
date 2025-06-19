@@ -6,7 +6,7 @@ exports.applyRounding = async (req, res) => {
     const { amount, roundingTypeId, useDynamicRoundingValue = false } = req.body;
     // IMPORTANT: Get tenant from the authenticated user.
     // This assumes you have middleware that attaches user information (including tenant) to req.user.
-    const tenant = req.user.tenant; 
+    const tenant = req.tenant; 
 
     if (typeof amount !== 'number' || amount < 0) {
         return res.status(400).json({ status: 'error', message: 'Invalid amount provided. Must be a non-negative number.' });
@@ -82,7 +82,7 @@ exports.getRoundingTypes = async (req, res) => {
 exports.createRoundingType = async (req, res) => {
     const { rounding_digit, rounding_number } = req.body;
     // IMPORTANT: Get tenant from the authenticated user.
-    const tenant = req.user.tenant; 
+    const tenant = req.tenant; 
 
     if (!rounding_digit || typeof rounding_number !== 'number') {
         return res.status(400).json({ status: 'error', message: 'Rounding digit and a valid rounding number are required.' });
@@ -100,7 +100,7 @@ exports.createRoundingType = async (req, res) => {
 exports.createRoundingValue = async (req, res) => {
     const { rounding_below, rounding_digit } = req.body;
     // IMPORTANT: Get tenant from the authenticated user.
-    const tenant = req.user.tenant; 
+    const tenant = req.tenant; 
 
     if (typeof rounding_below !== 'number' || typeof rounding_digit !== 'number') {
         return res.status(400).json({ status: 'error', message: 'Both rounding_below and rounding_digit must be numbers.' });
@@ -117,7 +117,7 @@ exports.createRoundingValue = async (req, res) => {
 
 exports.getRoundingValues = async (req, res) => {
     // IMPORTANT: Get tenant from the authenticated user.
-    const tenant = req.user.tenant; // 
+    const tenant = req.tenant; // 
     try {
         // Pass tenant to the model method
         const roundingValues = await RoundingValue.findAll(tenant); 
@@ -131,7 +131,7 @@ exports.getRoundingValues = async (req, res) => {
 exports.getRoundingValueByBelow = async (req, res) => {
     const { roundingBelow } = req.params;
     // IMPORTANT: Get tenant from the authenticated user.
-    const tenant = req.user.tenant; 
+    const tenant = req.tenant; 
 
     if (isNaN(parseInt(roundingBelow))) {
         return res.status(400).json({ status: 'error', message: 'Invalid rounding_below value provided.' });
@@ -153,7 +153,7 @@ exports.updateRoundingValue = async (req, res) => {
     const { roundingBelow } = req.params;
     const { rounding_digit } = req.body;
     // IMPORTANT: Get tenant from the authenticated user.
-    const tenant = req.user.tenant;
+    const tenant = req.tenant;
 
     if (isNaN(parseInt(roundingBelow)) || typeof rounding_digit !== 'number') {
         return res.status(400).json({ status: 'error', message: 'Invalid input for update.' });
@@ -174,7 +174,7 @@ exports.updateRoundingValue = async (req, res) => {
 exports.deleteRoundingValue = async (req, res) => {
     const { roundingBelow } = req.params;
     // IMPORTANT: Get tenant from the authenticated user.
-    const tenant = req.user.tenant; 
+    const tenant = req.tenant; 
 
     if (isNaN(parseInt(roundingBelow))) {
         return res.status(400).json({ status: 'error', message: 'Invalid rounding_below value provided.' });

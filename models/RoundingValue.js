@@ -34,7 +34,7 @@ class RoundingValue {
                 rt.rounding_digit AS rounding_digit_description,
                 rt.rounding_number
             FROM rounding_value rv
-            JOIN rounding_type rt ON rv.rounding_digit = rt.id AND rt.tenant = $1 -- Assuming rounding_type is also tenant-specific
+            JOIN rounding_type rt ON rv.rounding_digit = rt.id 
             WHERE rv.tenant = $1
             ORDER BY rv.rounding_below ASC;
         `;
@@ -55,7 +55,7 @@ class RoundingValue {
                 rt.rounding_digit AS rounding_digit_description,
                 rt.rounding_number
             FROM rounding_value rv
-            JOIN rounding_type rt ON rv.rounding_digit = rt.id AND rt.tenant = $2 -- Assuming rounding_type is also tenant-specific
+            JOIN rounding_type rt ON rv.rounding_digit = rt.id 
             WHERE rv.rounding_below = $1 AND rv.tenant = $2;
         `;
     const { rows } = await db.query(query, [roundingBelow, tenant]);
@@ -112,7 +112,7 @@ class RoundingValue {
                 rt.rounding_digit AS rounding_digit_description,
                 rt.rounding_number
             FROM rounding_value rv
-            JOIN rounding_type rt ON rv.rounding_digit = rt.id AND rt.tenant = $2 -- Assuming rounding_type is also tenant-specific
+            JOIN rounding_type rt ON rv.rounding_digit = rt.id 
             WHERE $1 < rv.rounding_below AND rv.tenant = $2
             ORDER BY rv.rounding_below ASC
             LIMIT 1;
