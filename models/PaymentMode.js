@@ -8,7 +8,7 @@ class PaymentMode {
    * @returns {Promise<Array<Object>>} - A promise resolving to an array of payment mode records.
    */
   static async findAll(tenant) {
-    const query = 'SELECT * FROM payment_modes WHERE tenant_ = $1 ORDER BY id';
+    const query = 'SELECT * FROM payment_modes WHERE tenant = $1 ORDER BY id';
     const { rows } = await db.query(query, [tenant]);
     return rows;
   }
@@ -20,7 +20,7 @@ class PaymentMode {
    * @returns {Promise<Object | null>} - A promise resolving to the retrieved payment mode record, or null if not found.
    */
   static async findById(id, tenant) {
-    const query = 'SELECT * FROM payment_modes WHERE id = $1 AND tenant_ = $2';
+    const query = 'SELECT * FROM payment_modes WHERE id = $1 AND tenant = $2';
     const { rows } = await db.query(query, [id, tenant]);
     return rows[0] || null;
   }
@@ -37,7 +37,7 @@ class PaymentMode {
   static async create(paymentModeData, tenant) {
     const { payment_mode_type_id, description, is_active = true } = paymentModeData;
     const query = `
-      INSERT INTO payment_modes (payment_mode_type_id, description, is_active, tenant_)
+      INSERT INTO payment_modes (payment_mode_type_id, description, is_active, tenant)
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
