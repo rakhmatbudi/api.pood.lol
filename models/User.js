@@ -3,6 +3,19 @@ const db = require('../config/db');
 const bcrypt = require('bcryptjs'); // Correct import: bcryptjs (commonly used for async operations)
 
 class User {
+    static async findByEmailGlobally(email) {
+        try {
+            const result = await db.query(
+                `SELECT id, name, email, password, role_id, tenant FROM public.users WHERE email = $1`,
+                [email]
+            );
+            return result.rows[0] || null;
+        } catch (error) {
+            console.error('Error finding user globally by email:', error);
+            throw error;
+        }
+    }
+
     /**
      * Finds all users for a specific tenant, optionally filtered by role(s) and paginated/ordered.
      * @param {string} tenant - The ID of the tenant.

@@ -1,22 +1,23 @@
 const express = require('express');
 const orderTypeController = require('../controllers/orderTypeController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // <--- IMPORT the tenant middleware
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 const router = express.Router();
 
 // Get all order types
-router.get('/', getTempTenantId, orderTypeController.getAllOrderTypes); // Added getTempTenantId
+router.get('/', authMiddleware, tenantResolverMiddleware, orderTypeController.getAllOrderTypes); // Added getTempTenantId
 
 // Create a new order type
-router.post('/', getTempTenantId, orderTypeController.createOrderType); // Added getTempTenantId
+router.post('/', authMiddleware, tenantResolverMiddleware, orderTypeController.createOrderType); // Added getTempTenantId
 
 // Get a single order type by ID
-router.get('/:id', getTempTenantId, orderTypeController.getOrderTypeById); // Added getTempTenantId
+router.get('/:id', authMiddleware, tenantResolverMiddleware, orderTypeController.getOrderTypeById); // Added getTempTenantId
 
 // Update an order type by ID
-router.put('/:id', getTempTenantId, orderTypeController.updateOrderType); // Added getTempTenantId
+router.put('/:id', authMiddleware, tenantResolverMiddleware, orderTypeController.updateOrderType); // Added getTempTenantId
 
 // Delete an order type by ID
-router.delete('/:id', getTempTenantId, orderTypeController.deleteOrderType); // Added getTempTenantId
+router.delete('/:id', authMiddleware, tenantResolverMiddleware, orderTypeController.deleteOrderType); // Added getTempTenantId
 
 module.exports = router;

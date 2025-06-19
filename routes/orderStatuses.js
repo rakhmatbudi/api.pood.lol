@@ -1,23 +1,24 @@
 // routes/orderStatuses.js
 const express = require('express');
 const orderStatusController = require('../controllers/orderStatusController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // <--- IMPORT the tenant middleware
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 const router = express.Router();
 
 // GET all order statuses
-router.get('/', getTempTenantId, orderStatusController.getAllOrderStatuses); // Added getTempTenantId
+router.get('/', authMiddleware, tenantResolverMiddleware, orderStatusController.getAllOrderStatuses); // Added getTempTenantId
 
 // GET order status by ID
-router.get('/:id', getTempTenantId, orderStatusController.getOrderStatusById); // Added getTempTenantId
+router.get('/:id', authMiddleware, tenantResolverMiddleware, orderStatusController.getOrderStatusById); // Added getTempTenantId
 
 // POST create new order status
-router.post('/', getTempTenantId, orderStatusController.createOrderStatus); // Added getTempTenantId
+router.post('/', authMiddleware, tenantResolverMiddleware, orderStatusController.createOrderStatus); // Added getTempTenantId
 
 // PUT update order status by ID
-router.put('/:id', getTempTenantId, orderStatusController.updateOrderStatus); // Added getTempTenantId
+router.put('/:id', authMiddleware, tenantResolverMiddleware, orderStatusController.updateOrderStatus); // Added getTempTenantId
 
 // DELETE order status by ID
-router.delete('/:id', getTempTenantId, orderStatusController.deleteOrderStatus); // Added getTempTenantId
+router.delete('/:id', authMiddleware, tenantResolverMiddleware, orderStatusController.deleteOrderStatus); // Added getTempTenantId
 
 module.exports = router;

@@ -3,14 +3,15 @@
 const express = require('express');
 const orderController = require('../controllers/orderController');
 const { validateOrder, validateUpdateOrder } = require('../middleware/validate');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // Import the new middleware
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 const Order = require('../models/Order'); // Import the Order model here to directly call its method
 
 const router = express.Router();
 
 // Add a log within the router, *after* getTempTenantId has theoretically run
 // This will confirm what tenantId looks like right before the controller
-router.use(getTempTenantId, (req, res, next) => {
+router.use(authMiddleware, tenantResolverMiddleware, (req, res, next) => {
     console.log(`[ORDERS ROUTER MW] req.tenantId (after getTempTenantId): ${req.tenantId}`);
     next();
 });
@@ -18,7 +19,7 @@ router.use(getTempTenantId, (req, res, next) => {
 router.get('/', getTempTenantId, orderController.getAllOrders);
 
 // Route for creating new ORDER
-router.post('/', getTempTenantId, validateOrder, orderController.createOrder);
+router.post('/', authMiddleware, tenantResolverMiddleware, validateOrder, orderController.createOrder);
 // Example usage:
 // {
 //    "table_number": "7",
@@ -29,23 +30,23 @@ router.post('/', getTempTenantId, validateOrder, orderController.createOrder);
 // }
 
 // Existing route for generic status update
-router.put('/:id/status', getTempTenantId, orderController.updateOrderStatus);
+router.put('/:id/status', authMiddleware, tenantResolverMiddleware, orderController.updateOrderStatus);
 // Example usage: PUT http://localhost:3000/api/orders/5/status
 // Body: { "status": "cancelled" }
 
 // NEW: Route to cancel an order, explicitly setting its order_status to 3 ('cancelled')
 // This bypasses the need to send "status": "cancelled" in the body,
 // making the intent of the endpoint clearer.
-router.put('/:id/cancel', getTempTenantId, orderController.cancelOrder); 
-router.get('/sessions/:sessionId', getTempTenantId, orderController.getOrdersBySessionId);
-router.get('/open/sessions/:cashier_session_id', getTempTenantId, orderController.getOpenOrdersBySession);
-router.get('/status/:status', getTempTenantId, orderController.getOrdersByStatus);
-router.get('/:id', getTempTenantId, orderController.getOrderById);
-router.put('/:id', getTempTenantId, validateUpdateOrder, orderController.updateOrder);
-router.delete('/:id', getTempTenantId, orderController.deleteOrder);
+router.put('/:id/cancel', authMiddleware, tenantResolverMiddleware, orderController.cancelOrder); 
+router.get('/sessions/:sessionId', authMiddleware, tenantResolverMiddleware, orderController.getOrdersBySessionId);
+router.get('/open/sessions/:cashier_session_id', authMiddleware, tenantResolverMiddleware, orderController.getOpenOrdersBySession);
+router.get('/status/:status', authMiddleware, tenantResolverMiddleware, orderController.getOrdersByStatus);
+router.get('/:id', authMiddleware, tenantResolverMiddleware, orderController.getOrderById);
+router.put('/:id', authMiddleware, tenantResolverMiddleware, validateUpdateOrder, orderController.updateOrder);
+router.delete('/:id', authMiddleware, tenantResolverMiddleware, orderController.deleteOrder);
 
 // Route for POST adding order items to a specific order
-router.post('/:orderId/items', getTempTenantId, orderController.addOrderItem);
+router.post('/:orderId/items', authMiddleware, tenantResolverMiddleware, orderController.addOrderItem);
 // usage: POST http://localhost:3000/api/orders/5/items
 // {
 //    "menu_item_id": 10,       // The ID of the menu item being ordered
@@ -59,10 +60,10 @@ router.post('/:orderId/items', getTempTenantId, orderController.addOrderItem);
 // }
 
 // Route for PUT updating an order item's status
-router.put('/:orderId/items/:itemId/status', getTempTenantId, orderController.updateOrderItemStatus);
+router.put('/:orderId/items/:itemId/status', authMiddleware, tenantResolverMiddleware, orderController.updateOrderItemStatus);
 
 // Route to get all orders grouped by cashier session, sorted by time descending
-router.get('/grouped/sessions/desc', getTempTenantId, orderController.getAllOrdersGroupedBySessionDescending);
+router.get('/grouped/sessions/desc', authMiddleware, tenantResolverMiddleware, orderController.getAllOrdersGroupedBySessionDescending);
 
 
 module.exports = router;

@@ -2,13 +2,14 @@
 const express = require('express');
 const router = express.Router();
 const taxController = require('../controllers/taxController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // <--- IMPORT the tenant middleware
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 // GET /rates - Get a list of available tax rates
-router.get('/rates', getTempTenantId, taxController.getTaxRates); // Added getTempTenantId
+router.get('/rates', authMiddleware, tenantResolverMiddleware, taxController.getTaxRates); // Added getTempTenantId
 
 // POST /calculate - Calculate tax for a given amount and rate
-router.post('/calculate', getTempTenantId, taxController.calculateTax); // Added getTempTenantId
+router.post('/calculate', authMiddleware, tenantResolverMiddleware, taxController.calculateTax); // Added getTempTenantId
 
 // You can add more routes for other tax-related operations as needed:
 

@@ -1,14 +1,14 @@
 const express = require('express');
 const paymentModeController = require('../controllers/paymentModeController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // <--- IMPORT the tenant middleware
-// You might add validation middleware for payment modes here
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 const router = express.Router();
 
-router.get('/', getTempTenantId, paymentModeController.getAllPaymentModes); // Added getTempTenantId
-router.get('/:id', getTempTenantId, paymentModeController.getPaymentModeById); // Added getTempTenantId
-router.post('/', getTempTenantId, paymentModeController.createPaymentMode); // Added getTempTenantId
-router.put('/:id', getTempTenantId, paymentModeController.updatePaymentMode); // Added getTempTenantId
-router.delete('/:id', getTempTenantId, paymentModeController.deletePaymentMode); // Added getTempTenantId
+router.get('/', authMiddleware, tenantResolverMiddleware, paymentModeController.getAllPaymentModes); // Added getTempTenantId
+router.get('/:id', authMiddleware, tenantResolverMiddleware, paymentModeController.getPaymentModeById); // Added getTempTenantId
+router.post('/', authMiddleware, tenantResolverMiddleware, paymentModeController.createPaymentMode); // Added getTempTenantId
+router.put('/:id', authMiddleware, tenantResolverMiddleware, paymentModeController.updatePaymentMode); // Added getTempTenantId
+router.delete('/:id', authMiddleware, tenantResolverMiddleware, paymentModeController.deletePaymentMode); // Added getTempTenantId
 
 module.exports = router;

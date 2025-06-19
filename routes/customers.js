@@ -1,15 +1,16 @@
 // routes/customers.js
 const express = require('express');
 const customerController = require('../controllers/customerController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // <--- IMPORT the tenant middleware
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 const router = express.Router();
 
 // Define customer routes
-router.get('/', getTempTenantId, customerController.getAllCustomers); // Added getTempTenantId
-router.get('/:id', getTempTenantId, customerController.getCustomerById); // Added getTempTenantId
-router.post('/', getTempTenantId, customerController.createCustomer); // Added getTempTenantId
-router.put('/:id', getTempTenantId, customerController.updateCustomer); // Added getTempTenantId
-router.delete('/:id', getTempTenantId, customerController.deleteCustomer); // Added getTempTenantId
+router.get('/', authMiddleware, tenantResolverMiddleware, customerController.getAllCustomers); // Added authMiddleware, tenantResolverMiddleware
+router.get('/:id', authMiddleware, tenantResolverMiddleware, customerController.getCustomerById); // Added authMiddleware, tenantResolverMiddleware
+router.post('/', authMiddleware, tenantResolverMiddleware, customerController.createCustomer); // Added authMiddleware, tenantResolverMiddleware
+router.put('/:id', authMiddleware, tenantResolverMiddleware, customerController.updateCustomer); // Added authMiddleware, tenantResolverMiddleware
+router.delete('/:id', authMiddleware, tenantResolverMiddleware, customerController.deleteCustomer); // Added authMiddleware, tenantResolverMiddleware
 
 module.exports = router;

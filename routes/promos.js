@@ -1,23 +1,24 @@
 // routes/promos.js
 const express = require('express');
 const promoController = require('../controllers/promoController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); // <--- IMPORT the tenant middleware
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 const router = express.Router();
 
 // Get all promos
-router.get('/', getTempTenantId, promoController.getAllPromos); // Added getTempTenantId
+router.get('/', authMiddleware, tenantResolverMiddleware, promoController.getAllPromos); // Added getTempTenantId
 
 // Get a single promo by ID
-router.get('/:id', getTempTenantId, promoController.getPromoById); // Added getTempTenantId
+router.get('/:id', authMiddleware, tenantResolverMiddleware, promoController.getPromoById); // Added getTempTenantId
 
 // Create a new promo
-router.post('/', getTempTenantId, promoController.createPromo); // Added getTempTenantId
+router.post('/', authMiddleware, tenantResolverMiddleware, promoController.createPromo); // Added getTempTenantId
 
 // Update an existing promo
-router.put('/:id', getTempTenantId, promoController.updatePromo); // Added getTempTenantId
+router.put('/:id', authMiddleware, tenantResolverMiddleware, promoController.updatePromo); // Added getTempTenantId
 
 // Delete a promo
-router.delete('/:id', getTempTenantId, promoController.deletePromo); // Added getTempTenantId
+router.delete('/:id', authMiddleware, tenantResolverMiddleware, promoController.deletePromo); // Added getTempTenantId
 
 module.exports = router;

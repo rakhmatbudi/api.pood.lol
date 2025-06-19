@@ -1,11 +1,12 @@
 const express = require('express');
 const roundingController = require('../controllers/roundingController');
-const { getTempTenantId } = require('../middleware/tempTenantMiddleware'); 
+const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
 
 const router = express.Router();
 
 // --- Routes for applying rounding ---
-router.post('/apply', getTempTenantId, roundingController.applyRounding);
+router.post('/apply', authMiddleware, tenantResolverMiddleware, roundingController.applyRounding);
 /*
 Example Request Body for POST /roundings/apply:
 Option 1: Fixed Rounding Type
@@ -22,8 +23,8 @@ Option 2: Dynamic Rounding based on RoundingValue table
 */
 
 // --- Routes for managing rounding types (from rounding_type table) ---
-router.get('/types', getTempTenantId, roundingController.getRoundingTypes); 
-router.post('/types', getTempTenantId, roundingController.createRoundingType); 
+router.get('/types', authMiddleware, tenantResolverMiddleware, roundingController.getRoundingTypes); 
+router.post('/types', authMiddleware, tenantResolverMiddleware, roundingController.createRoundingType); 
 /*
 Example Request Body for POST /roundings/types:
 {
@@ -32,7 +33,7 @@ Example Request Body for POST /roundings/types:
 */
 
 // --- NEW: Routes for managing rounding values (from rounding_value table) ---
-router.post('/values', getTempTenantId, roundingController.createRoundingValue); 
+router.post('/values', authMiddleware, tenantResolverMiddleware, roundingController.createRoundingValue); 
 /*
 Example Request Body for POST /roundings/values:
 {
@@ -40,9 +41,9 @@ Example Request Body for POST /roundings/values:
     "rounding_digit": 10
 }
 */
-router.get('/values', getTempTenantId, roundingController.getRoundingValues); 
-router.get('/values/:roundingBelow', getTempTenantId, roundingController.getRoundingValueByBelow); 
-router.put('/values/:roundingBelow', getTempTenantId, roundingController.updateRoundingValue); 
-router.delete('/values/:roundingBelow', getTempTenantId, roundingController.deleteRoundingValue); 
+router.get('/values', authMiddleware, tenantResolverMiddleware, roundingController.getRoundingValues); 
+router.get('/values/:roundingBelow', authMiddleware, tenantResolverMiddleware, roundingController.getRoundingValueByBelow); 
+router.put('/values/:roundingBelow', authMiddleware, tenantResolverMiddleware, roundingController.updateRoundingValue); 
+router.delete('/values/:roundingBelow', authMiddleware, tenantResolverMiddleware, roundingController.deleteRoundingValue); 
 
 module.exports = router;
