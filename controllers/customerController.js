@@ -11,24 +11,24 @@ const customerSchema = Joi.object({
 });
 
 /**
- * Helper to ensure tenantId is present
+ * Helper to ensure tenant is present
  */
-const getTenantId = (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
-    if (!tenantId) {
+const gettenant = (req, res) => {
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
+    if (!tenant) {
         res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         return null;
     }
-    return tenantId;
+    return tenant;
 };
 
 exports.getAllCustomers = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to retrieve customers specific to this tenant
-        const customers = await Customer.findAll(tenantId);
+        // Pass tenant to retrieve customers specific to this tenant
+        const customers = await Customer.findAll(tenant);
         res.status(200).json({
             status: 'success',
             count: customers.length,
@@ -44,12 +44,12 @@ exports.getAllCustomers = async (req, res) => {
 };
 
 exports.getCustomerById = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to find the customer belonging to this tenant
-        const customer = await Customer.findById(req.params.id, tenantId);
+        // Pass tenant to find the customer belonging to this tenant
+        const customer = await Customer.findById(req.params.id, tenant);
 
         if (!customer) {
             // Be specific: not found OR does not belong to this tenant
@@ -73,8 +73,8 @@ exports.getCustomerById = async (req, res) => {
 };
 
 exports.createCustomer = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
         // Validate request body against the schema
@@ -90,8 +90,8 @@ exports.createCustomer = async (req, res) => {
         }
 
         // If validation passes, 'value' contains the validated data
-        // Add tenant_id to the data before creating the customer
-        const customerData = { ...value, tenant_id: tenantId };
+        // Add tenant to the data before creating the customer
+        const customerData = { ...value, tenant_id: tenant };
         const newCustomer = await Customer.createCustomer(customerData);
         res.status(201).json({
             status: 'success',
@@ -107,16 +107,16 @@ exports.createCustomer = async (req, res) => {
 };
 
 exports.updateCustomer = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
         // You might want to add validation here too, for updates
         // const { error, value } = customerSchema.validate(req.body, { abortEarly: false });
         // if (error) { ... }
 
-        // Pass tenantId to update the customer belonging to this tenant
-        const updatedCustomer = await Customer.updateCustomer(req.params.id, req.body, tenantId);
+        // Pass tenant to update the customer belonging to this tenant
+        const updatedCustomer = await Customer.updateCustomer(req.params.id, req.body, tenant);
 
         if (!updatedCustomer) {
             // Be specific: not found OR does not belong to this tenant
@@ -140,12 +140,12 @@ exports.updateCustomer = async (req, res) => {
 };
 
 exports.deleteCustomer = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to delete the customer belonging to this tenant
-        const isDeleted = await Customer.deleteCustomer(req.params.id, tenantId);
+        // Pass tenant to delete the customer belonging to this tenant
+        const isDeleted = await Customer.deleteCustomer(req.params.id, tenant);
 
         if (!isDeleted) {
             // Be specific: not found OR does not belong to this tenant

@@ -2,24 +2,24 @@
 const Discount = require('../models/Discount');
 
 /**
- * Helper to ensure tenantId is present
+ * Helper to ensure tenant is present
  */
-const getTenantId = (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
-    if (!tenantId) {
+const gettenant = (req, res) => {
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
+    if (!tenant) {
         res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         return null;
     }
-    return tenantId;
+    return tenant;
 };
 
 exports.getAllDiscounts = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to retrieve discounts specific to this tenant
-        const discounts = await Discount.findAll(tenantId);
+        // Pass tenant to retrieve discounts specific to this tenant
+        const discounts = await Discount.findAll(tenant);
         res.status(200).json({
             status: 'success',
             count: discounts.length,
@@ -35,12 +35,12 @@ exports.getAllDiscounts = async (req, res) => {
 };
 
 exports.getDiscountById = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to find the discount belonging to this tenant
-        const discount = await Discount.findById(req.params.id, tenantId);
+        // Pass tenant to find the discount belonging to this tenant
+        const discount = await Discount.findById(req.params.id, tenant);
         if (!discount) {
             // Be specific: not found OR does not belong to this tenant
             return res.status(404).json({
@@ -62,12 +62,12 @@ exports.getDiscountById = async (req, res) => {
 };
 
 exports.createDiscount = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Add tenant_id to the discount data before creating
-        const discountData = { ...req.body, tenant_id: tenantId };
+        // Add tenant to the discount data before creating
+        const discountData = { ...req.body, tenant: tenant };
         const newDiscount = await Discount.create(discountData);
         res.status(201).json({
             status: 'success',
@@ -83,12 +83,12 @@ exports.createDiscount = async (req, res) => {
 };
 
 exports.updateDiscount = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to update the discount belonging to this tenant
-        const updatedDiscount = await Discount.update(req.params.id, req.body, tenantId);
+        // Pass tenant to update the discount belonging to this tenant
+        const updatedDiscount = await Discount.update(req.params.id, req.body, tenant);
         if (!updatedDiscount) {
             // Be specific: not found OR does not belong to this tenant
             return res.status(404).json({
@@ -110,12 +110,12 @@ exports.updateDiscount = async (req, res) => {
 };
 
 exports.deleteDiscount = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to delete the discount belonging to this tenant
-        const deletedDiscount = await Discount.delete(req.params.id, tenantId);
+        // Pass tenant to delete the discount belonging to this tenant
+        const deletedDiscount = await Discount.delete(req.params.id, tenant);
         if (!deletedDiscount) {
             // Be specific: not found OR does not belong to this tenant
             return res.status(404).json({

@@ -7,11 +7,11 @@ const MenuItemVariant = require('../models/MenuItemVariant');
  */
 exports.getAllMenuItemVariants = async (req, res) => {
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) {
+        const tenant = req.tenant;
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
-        const variants = await MenuItemVariant.findAll(tenantId); // Pass tenantId
+        const variants = await MenuItemVariant.findAll(tenant); // Pass tenant
         res.status(200).json({ status: 'success', data: variants });
     } catch (error) {
         console.error('Error fetching all menu item variants:', error);
@@ -26,11 +26,11 @@ exports.getAllMenuItemVariants = async (req, res) => {
 exports.getMenuItemVariantById = async (req, res) => {
     const { id } = req.params;
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) {
+        const tenant = req.tenant;
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
-        const variant = await MenuItemVariant.findById(id, tenantId); // Pass tenantId
+        const variant = await MenuItemVariant.findById(id, tenant); // Pass tenant
         if (variant) {
             res.status(200).json({ status: 'success', data: variant });
         } else {
@@ -49,11 +49,11 @@ exports.getMenuItemVariantById = async (req, res) => {
 exports.getMenuItemVariantsByMenuItemId = async (req, res) => {
     const { menuItemId } = req.params;
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) {
+        const tenant = req.tenant;
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
-        const variants = await MenuItemVariant.findByMenuItemId(menuItemId, tenantId); // Pass tenantId
+        const variants = await MenuItemVariant.findByMenuItemId(menuItemId, tenant); // Pass tenant
         res.status(200).json({ status: 'success', data: variants });
     } catch (error) {
         console.error(`Error fetching variants for menu item ID ${menuItemId}:`, error);
@@ -67,8 +67,8 @@ exports.getMenuItemVariantsByMenuItemId = async (req, res) => {
  */
 exports.createMenuItemVariant = async (req, res) => {
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) {
+        const tenant = req.tenant;
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
 
@@ -92,7 +92,7 @@ exports.createMenuItemVariant = async (req, res) => {
             name,
             price: parsedPrice,
             is_active: parsedIsActive,
-            tenant: tenantId // Add tenantId to the data for creation
+            tenant: tenant // Add tenant to the data for creation
         };
 
         const newVariant = await MenuItemVariant.create(newVariantData);
@@ -110,8 +110,8 @@ exports.createMenuItemVariant = async (req, res) => {
 exports.updateMenuItemVariant = async (req, res) => {
     const { id } = req.params;
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) {
+        const tenant = req.tenant;
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
 
@@ -128,10 +128,10 @@ exports.updateMenuItemVariant = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'No fields provided for update' });
         }
         
-        // Add tenantId to updateData to ensure tenant-specific update
-        updateData.tenant = tenantId;
+        // Add tenant to updateData to ensure tenant-specific update
+        updateData.tenant = tenant;
 
-        const updatedVariant = await MenuItemVariant.update(id, updateData); // Pass updatedData with tenantId
+        const updatedVariant = await MenuItemVariant.update(id, updateData); // Pass updatedData with tenant
         if (updatedVariant) {
             res.status(200).json({ status: 'success', data: updatedVariant });
         } else {
@@ -150,11 +150,11 @@ exports.updateMenuItemVariant = async (req, res) => {
 exports.deleteMenuItemVariant = async (req, res) => {
     const { id } = req.params;
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) {
+        const tenant = req.tenant;
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
-        const deletedVariant = await MenuItemVariant.delete(id, tenantId); // Pass tenantId
+        const deletedVariant = await MenuItemVariant.delete(id, tenant); // Pass tenant
         if (deletedVariant) {
             res.status(200).json({ status: 'success', data: deletedVariant });
         } else {

@@ -3,14 +3,14 @@ const Promo = require('../models/Promo');
 
 // Get all promos
 exports.getAllPromos = async (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
     try {
-        const promos = await Promo.findAll(tenantId); // Pass tenantId to the model method
+        const promos = await Promo.findAll(tenant); // Pass tenant to the model method
         res.status(200).json({
             status: 'success',
             data: promos
@@ -28,14 +28,14 @@ exports.getAllPromos = async (req, res) => {
 // Get promo by ID
 exports.getPromoById = async (req, res) => {
     const { id } = req.params;
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
     try {
-        const promo = await Promo.findById(id, tenantId); // Pass tenantId to the model method
+        const promo = await Promo.findById(id, tenant); // Pass tenant to the model method
         if (!promo) {
             return res.status(404).json({
                 status: 'error',
@@ -58,15 +58,15 @@ exports.getPromoById = async (req, res) => {
 
 // Create a new promo
 exports.createPromo = async (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
     try {
-        // Add tenantId to the promo data before creating
-        const promoData = { ...req.body, tenant_id: tenantId };
+        // Add tenant to the promo data before creating
+        const promoData = { ...req.body, tenant: tenant };
         const newPromo = await Promo.create(promoData); // Pass the combined data
         res.status(201).json({
             status: 'success',
@@ -86,15 +86,15 @@ exports.createPromo = async (req, res) => {
 // Update an existing promo
 exports.updatePromo = async (req, res) => {
     const { id } = req.params;
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
     try {
-        // Include tenantId in the update operation to ensure tenant scope
-        const updatedPromo = await Promo.update(id, req.body, tenantId); // Pass tenantId to the model method
+        // Include tenant in the update operation to ensure tenant scope
+        const updatedPromo = await Promo.update(id, req.body, tenant); // Pass tenant to the model method
         if (!updatedPromo) {
             return res.status(404).json({
                 status: 'error',
@@ -119,14 +119,14 @@ exports.updatePromo = async (req, res) => {
 // Delete a promo
 exports.deletePromo = async (req, res) => {
     const { id } = req.params;
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
     try {
-        const deletedPromo = await Promo.delete(id, tenantId); // Pass tenantId to the model method
+        const deletedPromo = await Promo.delete(id, tenant); // Pass tenant to the model method
         if (!deletedPromo) {
             return res.status(404).json({
                 status: 'error',

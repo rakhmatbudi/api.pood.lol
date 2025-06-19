@@ -5,10 +5,10 @@ const fs = require('fs/promises');
 
 exports.getAllMenuCategories = async (req, res) => {
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
-        const categories = await MenuCategory.findAll(tenantId); // Pass tenantId
+        const categories = await MenuCategory.findAll(tenant); // Pass tenant
         res.status(200).json({
             status: 'success',
             count: categories.length,
@@ -25,10 +25,10 @@ exports.getAllMenuCategories = async (req, res) => {
 
 exports.getMenuCategoryById = async (req, res) => {
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
-        const category = await MenuCategory.findById(req.params.id, tenantId); // Pass tenantId
+        const category = await MenuCategory.findById(req.params.id, tenant); // Pass tenant
         if (!category) {
             return res.status(404).json({
                 status: 'error',
@@ -53,8 +53,8 @@ exports.createMenuCategory = async (req, res) => {
     const localFilePath = req.file ? req.file.path : null;
 
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
         console.log('Request body:', req.body);
         console.log('Request file:', req.file);
@@ -82,7 +82,7 @@ exports.createMenuCategory = async (req, res) => {
             try {
                 console.log('Uploading image to Cloudinary...');
                 const uploadResult = await cloudinary.uploader.upload(localFilePath, {
-                    folder: `Pood/${tenantId}/MenuCategory`, // Tenant-specific folder
+                    folder: `Pood/${tenant}/MenuCategory`, // Tenant-specific folder
                     public_id: `${name.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`,
                     resource_type: 'image'
                 });
@@ -115,12 +115,12 @@ exports.createMenuCategory = async (req, res) => {
             sku_id,
             is_highlight: is_highlight === 'true' || is_highlight === true,
             is_display_for_self_order: is_display_for_self_order === 'true' || is_display_for_self_order === true,
-            tenant: tenantId // Add tenantId
+            tenant: tenant // Add tenant
         };
 
         console.log('Creating category with data:', categoryData);
 
-        const newCategory = await MenuCategory.create(categoryData); // Pass categoryData with tenantId
+        const newCategory = await MenuCategory.create(categoryData); // Pass categoryData with tenant
 
         res.status(201).json({
             status: 'success',
@@ -156,8 +156,8 @@ exports.updateMenuCategory = async (req, res) => {
     const localFilePath = req.file ? req.file.path : null;
 
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
         console.log('Update request body:', req.body);
         console.log('Update request file:', req.file);
@@ -173,7 +173,7 @@ exports.updateMenuCategory = async (req, res) => {
         } = req.body;
 
         // Find existing category for THIS TENANT
-        const existingCategory = await MenuCategory.findById(id, tenantId); // Pass tenantId
+        const existingCategory = await MenuCategory.findById(id, tenant); // Pass tenant
         if (!existingCategory) {
             return res.status(404).json({
                 status: 'error',
@@ -192,7 +192,7 @@ exports.updateMenuCategory = async (req, res) => {
                     try {
                         // Extract public_id, considering the tenant-specific folder structure
                         const publicIdMatch = existingCategory.display_picture.match(/\/Pood\/(\d+)\/MenuCategory\/(.+)\./);
-                        if (publicIdMatch && publicIdMatch[1] === String(tenantId)) { // Ensure it's the correct tenant's image
+                        if (publicIdMatch && publicIdMatch[1] === String(tenant)) { // Ensure it's the correct tenant's image
                             const publicId = `Pood/${publicIdMatch[1]}/MenuCategory/${publicIdMatch[2]}`;
                             await cloudinary.uploader.destroy(publicId);
                             console.log('Old image deleted from Cloudinary');
@@ -207,7 +207,7 @@ exports.updateMenuCategory = async (req, res) => {
                 // Upload new image
                 console.log('Uploading new image to Cloudinary...');
                 const uploadResult = await cloudinary.uploader.upload(localFilePath, {
-                    folder: `Pood/${tenantId}/MenuCategory`, // Tenant-specific folder
+                    folder: `Pood/${tenant}/MenuCategory`, // Tenant-specific folder
                     public_id: `${(name || existingCategory.name).replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`,
                     resource_type: 'image'
                 });
@@ -234,7 +234,7 @@ exports.updateMenuCategory = async (req, res) => {
             if (existingCategory.display_picture) {
                 try {
                     const publicIdMatch = existingCategory.display_picture.match(/\/Pood\/(\d+)\/MenuCategory\/(.+)\./);
-                    if (publicIdMatch && publicIdMatch[1] === String(tenantId)) { // Ensure it's the correct tenant's image
+                    if (publicIdMatch && publicIdMatch[1] === String(tenant)) { // Ensure it's the correct tenant's image
                         const publicId = `Pood/${publicIdMatch[1]}/MenuCategory/${publicIdMatch[2]}`;
                         await cloudinary.uploader.destroy(publicId);
                         console.log('Image removed from Cloudinary');
@@ -257,12 +257,12 @@ exports.updateMenuCategory = async (req, res) => {
             sku_id,
             is_highlight: is_highlight !== undefined ? (is_highlight === 'true' || is_highlight === true) : existingCategory.is_highlight,
             is_display_for_self_order: is_display_for_self_order !== undefined ? (is_display_for_self_order === 'true' || is_display_for_self_order === true) : existingCategory.is_display_for_self_order,
-            tenant: tenantId // Add tenantId to update data
+            tenant: tenant // Add tenant to update data
         };
 
         console.log('Updating category with data:', categoryData);
 
-        const updatedCategory = await MenuCategory.update(id, categoryData); // Pass categoryData with tenantId
+        const updatedCategory = await MenuCategory.update(id, categoryData); // Pass categoryData with tenant
 
         res.status(200).json({
             status: 'success',
@@ -291,14 +291,14 @@ exports.updateMenuCategory = async (req, res) => {
 exports.deleteMenuCategory = async (req, res) => {
     const { id } = req.params;
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
         // Find category to get its display_picture for deletion, scoped by tenant
-        const category = await MenuCategory.findById(id, tenantId); // Pass tenantId
+        const category = await MenuCategory.findById(id, tenant); // Pass tenant
         if (category && category.display_picture) {
             const publicIdMatch = category.display_picture.match(/\/Pood\/(\d+)\/MenuCategory\/(.+)\./);
-            if (publicIdMatch && publicIdMatch[1] === String(tenantId)) { // Ensure it's the correct tenant's image
+            if (publicIdMatch && publicIdMatch[1] === String(tenant)) { // Ensure it's the correct tenant's image
                 const publicId = `Pood/${publicIdMatch[1]}/MenuCategory/${publicIdMatch[2]}`;
                 try {
                     await cloudinary.uploader.destroy(publicId);
@@ -311,7 +311,7 @@ exports.deleteMenuCategory = async (req, res) => {
             }
         }
 
-        const deletedCategory = await MenuCategory.softDelete(id, tenantId); // Pass tenantId
+        const deletedCategory = await MenuCategory.softDelete(id, tenant); // Pass tenant
         if (!deletedCategory) {
             return res.status(404).json({
                 status: 'error',

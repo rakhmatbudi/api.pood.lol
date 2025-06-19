@@ -7,15 +7,15 @@ const CashierSessionTransaction = require('../models/CashierSessionTransaction')
 const PaymentMode = require('../models/PaymentMode');
 
 /**
- * Helper to ensure tenantId is present
+ * Helper to ensure tenant is present
  */
-const getTenantId = (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
-    if (!tenantId) {
+const getTenant = (req, res) => {
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
+    if (!tenant) {
         res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         return null;
     }
-    return tenantId;
+    return tenant;
 };
 
 /**
@@ -24,17 +24,17 @@ const getTenantId = (req, res) => {
  * @param {Response} res - Express response object
  */
 const getAllSessions = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
 
-        console.log("Getting Session information for tenant:", tenantId);
+        console.log("Getting Session information for tenant:", tenant);
 
-        // Pass tenantId to the model method
-        const { rows, pagination } = await CashierSession.getAll(tenantId, page, limit);
+        // Pass tenant to the model method
+        const { rows, pagination } = await CashierSession.getAll(tenant, page, limit);
 
         res.json({
             status: 'success',
@@ -57,12 +57,12 @@ const getAllSessions = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const getSessionById = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
-        // Pass tenantId to the model method to scope the lookup
-        const session = await CashierSession.getById(req.params.id, tenantId);
+        // Pass tenant to the model method to scope the lookup
+        const session = await CashierSession.getById(req.params.id, tenant);
 
         if (!session) {
             return res.status(404).json({
@@ -91,8 +91,8 @@ const getSessionById = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const openSession = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const { user_id, opening_amount, notes } = req.body;
@@ -108,7 +108,7 @@ const openSession = async (req, res) => {
         }
 
         // Check if user already has an open session for THIS TENANT
-        const hasOpenSession = await CashierSession.hasOpenSession(user_id, tenantId);
+        const hasOpenSession = await CashierSession.hasOpenSession(user_id, tenant);
         if (hasOpenSession) {
             return res.status(400).json({
                 status: 'error',
@@ -116,12 +116,12 @@ const openSession = async (req, res) => {
             });
         }
 
-        // Create new session, including tenantId
+        // Create new session, including tenant
         const session = await CashierSession.open({
             user_id,
             opening_amount,
             notes,
-            tenant_id: tenantId // Include tenant_id here
+            tenant: tenant // Include tenant here
         });
 
         res.status(201).json({
@@ -145,20 +145,20 @@ const openSession = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const getSessionTransactions = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const { sessionId } = req.params;
 
         // First, verify if the cashier session exists and belongs to the tenant
-        const session = await CashierSession.getById(sessionId, tenantId);
+        const session = await CashierSession.getById(sessionId, tenant);
         if (!session) {
             return res.status(404).json({ status: 'error', message: 'Cashier session not found or does not belong to this tenant.' });
         }
 
         // Get transactions scoped by session ID and tenant ID
-        const transactions = await CashierSessionTransaction.getBySessionId(sessionId, tenantId);
+        const transactions = await CashierSessionTransaction.getBySessionId(sessionId, tenant);
 
         res.json({
             status: 'success',
@@ -183,8 +183,8 @@ const getSessionTransactions = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const handleCashTransaction = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const { sessionId } = req.params;
@@ -207,7 +207,7 @@ const handleCashTransaction = async (req, res) => {
         }
 
         // Check if session exists and is open for this tenant
-        const existingSession = await CashierSession.getById(sessionId, tenantId);
+        const existingSession = await CashierSession.getById(sessionId, tenant);
         if (!existingSession) {
             return res.status(404).json({ status: 'error', message: 'Cashier session not found or does not belong to this tenant' });
         }
@@ -215,13 +215,13 @@ const handleCashTransaction = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Cashier session is already closed' });
         }
 
-        // Create the transaction record, including tenantId
+        // Create the transaction record, including tenant
         const transaction = await CashierSessionTransaction.create({
             cashier_session_id: sessionId,
             type,
             amount: parsedAmount,
             description,
-            tenant_id: tenantId // Include tenant_id
+            tenant: tenant // Include tenant
         });
 
         res.status(201).json({
@@ -246,8 +246,8 @@ const handleCashTransaction = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const closeSession = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const {
@@ -274,7 +274,7 @@ const closeSession = async (req, res) => {
         const expected = expected_payment_mode_amounts || {};
 
         // Check if session exists and is open for this tenant
-        const existingSession = await CashierSession.getById(sessionId, tenantId);
+        const existingSession = await CashierSession.getById(sessionId, tenant);
         if (!existingSession) {
             return res.status(404).json({ status: 'error', message: 'Cashier session not found or does not belong to this tenant' });
         }
@@ -291,7 +291,7 @@ const closeSession = async (req, res) => {
             const createdPayments = [];
 
             // Get all predefined payment modes for this tenant from the database
-            const paymentModes = await PaymentMode.findAll(tenantId);
+            const paymentModes = await PaymentMode.findAll(tenant);
 
             // Create payments for each payment mode that has a non-zero actual amount
             for (const modeDescription in payment_mode_amounts) {
@@ -312,12 +312,12 @@ const closeSession = async (req, res) => {
                                 expected_amount: expectedAmountForMode,
                                 actual_amount: actualAmount,
                                 notes: `Closing amount for ${modeDescription}`,
-                                tenant_id: tenantId // Include tenant_id
+                                tenant: tenant // Include tenant
                             }, client); // Pass client for transaction control
 
                             createdPayments.push(newPayment);
                         } else {
-                            console.warn(`Payment mode "${modeDescription}" not found for tenant ${tenantId} in the database.`);
+                            console.warn(`Payment mode "${modeDescription}" not found for tenant ${tenant} in the database.`);
                         }
                     }
                 }
@@ -340,23 +340,23 @@ const closeSession = async (req, res) => {
                                 expected_amount: expectedAmountForMode,
                                 actual_amount: 0, // No actual amount provided
                                 notes: `Expected amount for ${modeDescription}`,
-                                tenant_id: tenantId // Include tenant_id
+                                tenant: tenant // Include tenant
                             }, client); // Pass client for transaction control
 
                             createdPayments.push(newPayment);
                         } else {
-                            console.warn(`Payment mode "${modeDescription}" not found for tenant ${tenantId} in the database.`);
+                            console.warn(`Payment mode "${modeDescription}" not found for tenant ${tenant} in the database.`);
                         }
                     }
                 }
             }
 
-            // Update session with closing details, scoped by tenantId
+            // Update session with closing details, scoped by tenant
             const updatedSession = await CashierSession.close(sessionId, {
                 closing_amount,
                 expected_amount,
                 notes,
-            }, tenantId, client); // Pass tenantId and client
+            }, tenant, client); // Pass tenant and client
 
             await client.query('COMMIT');
 
@@ -387,14 +387,14 @@ const closeSession = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const getCurrentUserSession = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const userId = req.params.userId;
 
         // Get session scoped by user ID and tenant ID
-        const session = await CashierSession.getCurrentByUserId(userId, tenantId);
+        const session = await CashierSession.getCurrentByUserId(userId, tenant);
 
         if (!session) {
             return res.json({
@@ -424,13 +424,13 @@ const getCurrentUserSession = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const getCurrentSession = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         // This function's intent is a bit ambiguous for multi-tenancy.
         // If it's meant to get *any* open session for the tenant,
-        // it should pass tenantId. If it's meant for the *current user's* session,
+        // it should pass tenant. If it's meant for the *current user's* session,
         // getCurrentUserSession is more appropriate.
         // Assuming it's meant to get the current user's session from the logged-in user (req.user.id),
         // or a global current session for the tenant if that's the design.
@@ -440,8 +440,8 @@ const getCurrentSession = async (req, res) => {
         // If `CashierSession.getCurrentSession()` in the model implies finding
         // *the* active session for the current `user_id` (which needs to be passed),
         // or if it finds *any* open session for the tenant, the model method needs clarification.
-        // I'll pass the tenantId.
-        const session = await CashierSession.getCurrentSession(tenantId);
+        // I'll pass the tenant.
+        const session = await CashierSession.getCurrentSession(tenant);
 
         if (!session) {
             return res.json({
@@ -471,19 +471,19 @@ const getCurrentSession = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const getPaymentsGroupedByMode = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     const { sessionId } = req.params;
     try {
         // First, verify if the cashier session exists and belongs to the tenant
-        const session = await CashierSession.getById(sessionId, tenantId);
+        const session = await CashierSession.getById(sessionId, tenant);
         if (!session) {
             return res.status(404).json({ status: 'error', message: 'Cashier session not found or does not belong to this tenant.' });
         }
 
         // Fetch all payments for the given session ID and tenant ID
-        const paymentsData = await CashierSessionPayment.getBySessionId(sessionId, tenantId);
+        const paymentsData = await CashierSessionPayment.getBySessionId(sessionId, tenant);
         if (!paymentsData || paymentsData.length === 0) {
             return res.status(200).json({
                 status: 'success',
@@ -533,8 +533,8 @@ const getPaymentsGroupedByMode = async (req, res) => {
  * @param {Response} res - Express response object
  */
 const createPayment = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = getTenant(req, res);
+    if (!tenant) return;
 
     try {
         const { cashier_session_id, payment_mode_id, expected_amount, actual_amount, notes } = req.body;
@@ -548,7 +548,7 @@ const createPayment = async (req, res) => {
         }
 
         // Optional but recommended: Verify if the cashier_session_id belongs to the tenant
-        const session = await CashierSession.getById(cashier_session_id, tenantId);
+        const session = await CashierSession.getById(cashier_session_id, tenant);
         if (!session) {
             return res.status(404).json({
                 status: 'error',
@@ -562,7 +562,7 @@ const createPayment = async (req, res) => {
             expected_amount,
             actual_amount,
             notes,
-            tenant_id: tenantId // Include tenant_id
+            tenant: tenant // Include tenant
         });
 
         res.status(201).json({

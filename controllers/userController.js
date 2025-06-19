@@ -5,20 +5,20 @@ const Joi = require('joi');
 const bcrypt = require('bcryptjs'); // Import bcrypt for password hashing
 
 /**
- * Helper to ensure tenantId is present
+ * Helper to ensure tenant is present
  */
-const getTenantId = (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
-    if (!tenantId) {
+const gettenant = (req, res) => {
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
+    if (!tenant) {
         res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         return null;
     }
-    return tenantId;
+    return tenant;
 };
 
 exports.getUserList = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = gettenant(req, res);
+    if (!tenant) return;
 
     try {
         const { role, limit, offset, orderBy, orderDirection } = req.query; // Added pagination/ordering params
@@ -41,7 +41,7 @@ exports.getUserList = async (req, res) => {
             filter.orderDirection = orderDirection;
         }
 
-        const users = await User.findAll(tenantId, filter); // Pass tenantId separately
+        const users = await User.findAll(tenant, filter); // Pass tenant separately
 
         res.status(200).json({
             status: 'success',
@@ -61,8 +61,8 @@ exports.getUserList = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-    const tenantId = getTenantId(req, res); // Get tenantId for login scope
-    if (!tenantId) return;
+    const tenant = gettenant(req, res); // Get tenant for login scope
+    if (!tenant) return;
 
     try {
         const { email, password } = req.body;
@@ -74,8 +74,8 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Find user by email AND tenantId
-        const user = await User.findByEmail(email, tenantId);
+        // Find user by email AND tenant
+        const user = await User.findByEmail(email, tenant);
 
         if (!user) {
             return res.status(401).json({
@@ -93,9 +93,9 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Include tenantId in JWT payload for future authenticated requests
+        // Include tenant in JWT payload for future authenticated requests
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role_id, tenantId: user.tenant },
+            { id: user.id, email: user.email, role: user.role_id, tenant: user.tenant },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
@@ -121,8 +121,8 @@ exports.login = async (req, res) => {
 };
 
 exports.createUser = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = gettenant(req, res);
+    if (!tenant) return;
 
     try {
         const schema = Joi.object({
@@ -142,8 +142,8 @@ exports.createUser = async (req, res) => {
             });
         }
 
-        // Pass tenantId to emailExists to scope the check
-        const emailExists = await User.emailExists(value.email, tenantId);
+        // Pass tenant to emailExists to scope the check
+        const emailExists = await User.emailExists(value.email, tenant);
         if (emailExists) {
             return res.status(400).json({
                 status: 'error',
@@ -154,12 +154,12 @@ exports.createUser = async (req, res) => {
         // Hash the password before sending it to the model
         value.password = await bcrypt.hash(value.password, 10);
 
-        // Create the new user with tenant_id
-        const newUser = await User.create({ ...value, tenant_id: tenantId });
+        // Create the new user with tenant
+        const newUser = await User.create({ ...value, tenant: tenant });
 
-        // Include tenantId in the token payload for consistency
+        // Include tenant in the token payload for consistency
         const token = jwt.sign(
-            { id: newUser.id, email: newUser.email, role: newUser.role_id, tenantId: newUser.tenant },
+            { id: newUser.id, email: newUser.email, role: newUser.role_id, tenant: newUser.tenant },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
@@ -188,8 +188,8 @@ exports.createUser = async (req, res) => {
  * Update an existing user by ID within a specific tenant.
  */
 exports.updateUser = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = gettenant(req, res);
+    if (!tenant) return;
 
     const userId = req.params.id; // User ID from the URL parameter
 
@@ -231,7 +231,7 @@ exports.updateUser = async (req, res) => {
 
         // If email is being updated, check for uniqueness within the tenant
         if (value.email) {
-            const existingUserWithEmail = await User.findByEmail(value.email, tenantId);
+            const existingUserWithEmail = await User.findByEmail(value.email, tenant);
             // If an email exists AND it belongs to a different user (not the one being updated)
             if (existingUserWithEmail && String(existingUserWithEmail.id) !== userId) {
                 return res.status(400).json({
@@ -247,7 +247,7 @@ exports.updateUser = async (req, res) => {
         }
 
         // Call the User model's update method
-        const updatedUser = await User.update(userId, tenantId, value);
+        const updatedUser = await User.update(userId, tenant, value);
 
         if (!updatedUser) {
             // This means the user was not found within the specified tenant,
@@ -283,8 +283,8 @@ exports.updateUser = async (req, res) => {
  * Delete a user by ID within a specific tenant.
  */
 exports.deleteUser = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return;
+    const tenant = gettenant(req, res);
+    if (!tenant) return;
 
     const userId = req.params.id; // User ID from the URL parameter
 
@@ -309,7 +309,7 @@ exports.deleteUser = async (req, res) => {
         // --- End Authorization Check ---
 
         // Call the User model's delete method
-        const deletedCount = await User.delete(userId, tenantId);
+        const deletedCount = await User.delete(userId, tenant);
 
         if (deletedCount === 0) {
             // User not found within the specified tenant, or already deleted

@@ -5,10 +5,10 @@ const PromoItem = require('../models/PromoItem');
 const db = require('../config/db'); // Assuming this is your PostgreSQL client/pool
 
 // Helper function to get discount details
-async function getDiscountById(discountId, tenantId) { // Added tenantId
+async function getDiscountById(discountId, tenant) { // Added tenant
     try {
-        const query = 'SELECT * FROM discount WHERE id = $1 AND tenant_id = $2'; // Filter by tenant_id
-        const { rows } = await db.query(query, [discountId, tenantId]);
+        const query = 'SELECT * FROM discount WHERE id = $1 AND tenant = $2'; // Filter by tenant
+        const { rows } = await db.query(query, [discountId, tenant]);
         return rows[0] || null;
     } catch (error) {
         console.error('Error fetching discount:', error);
@@ -17,10 +17,10 @@ async function getDiscountById(discountId, tenantId) { // Added tenantId
 }
 
 // Helper function to get promo details by ID
-async function getPromoById(promoId, tenantId) { // Added tenantId
+async function getPromoById(promoId, tenant) { // Added tenant
     try {
-        const query = 'SELECT * FROM promo WHERE promo_id = $1 AND tenant_id = $2'; // Filter by tenant_id
-        const { rows } = await db.query(query, [promoId, tenantId]);
+        const query = 'SELECT * FROM promo WHERE promo_id = $1 AND tenant = $2'; // Filter by tenant
+        const { rows } = await db.query(query, [promoId, tenant]);
         return rows[0] || null;
     } catch (error) {
         console.error('Error fetching promo:', error);
@@ -38,7 +38,7 @@ function getCurrentDateSimple() {
 }
 
 // Helper function to find the first active, date-valid promo for a specific tenant
-async function getAutomaticPromo(tenantId) { // Added tenantId
+async function getAutomaticPromo(tenant) { // Added tenant
     try {
         const currentDate = getCurrentDateSimple();
 
@@ -48,11 +48,11 @@ async function getAutomaticPromo(tenantId) { // Added tenantId
             WHERE is_active = TRUE
               AND start_date <= $1::date
               AND end_date >= $1::date
-              AND tenant_id = $2 -- Filter by tenant_id
+              AND tenant = $2 -- Filter by tenant
             ORDER BY promo_id ASC
             LIMIT 1;
         `;
-        const { rows } = await db.query(query, [currentDate, tenantId]);
+        const { rows } = await db.query(query, [currentDate, tenant]);
         return rows[0] || null;
     } catch (error) {
         console.error('Error fetching automatic promo:', error);
@@ -61,14 +61,14 @@ async function getAutomaticPromo(tenantId) { // Added tenantId
 }
 
 // Helper to validate a specific promo by ID, including activity and date for a specific tenant
-async function validateSpecificPromo(promoId, tenantId) { // Added tenantId
+async function validateSpecificPromo(promoId, tenant) { // Added tenant
     try {
-        const promo = await getPromoById(promoId, tenantId); // Pass tenantId
+        const promo = await getPromoById(promoId, tenant); // Pass tenant
         if (!promo) return null;
 
         // Ensure the promo also belongs to the tenant
-        if (promo.tenant_id !== tenantId) {
-            console.warn(`Attempt to validate promo ${promoId} for wrong tenant ${tenantId}. Promo belongs to ${promo.tenant_id}.`);
+        if (promo.tenant !== tenant) {
+            console.warn(`Attempt to validate promo ${promoId} for wrong tenant ${tenant}. Promo belongs to ${promo.tenant}.`);
             return null; // Do not return promo if it belongs to a different tenant
         }
 
@@ -90,9 +90,9 @@ async function validateSpecificPromo(promoId, tenantId) { // Added tenantId
 
 exports.processPayment = async (req, res) => {
     const { order_id, amount, payment_mode, transaction_id, discount_id, promo_id: requested_promo_id } = req.body;
-    const tenantId = req.tenantId; // Retrieve tenantId from request
+    const tenant = req.tenant; // Retrieve tenant from request
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
@@ -100,20 +100,20 @@ exports.processPayment = async (req, res) => {
     let promoInfo = null;
 
     try {
-        // IMPORTANT: Ensure Order.findById checks tenantId internally.
-        // Assuming your Order model's findById method takes tenantId as a second argument.
-        const order = await Order.findById(order_id, tenantId);
+        // IMPORTANT: Ensure Order.findById checks tenant internally.
+        // Assuming your Order model's findById method takes tenant as a second argument.
+        const order = await Order.findById(order_id, tenant);
         if (!order) {
             return res.status(404).json({ status: 'error', message: 'Order not found' });
         }
 
         // Ensure order also belongs to the tenant (redundant if findById already checks, but safe)
-        if (order.tenant_id !== tenantId) {
+        if (order.tenant !== tenant) {
             return res.status(403).json({ status: 'error', message: 'Access denied. Order does not belong to this tenant.' });
         }
 
-        // IMPORTANT: Ensure OrderItem.findAllByOrderId checks tenantId internally.
-        const allOrderItems = await OrderItem.findAllByOrderId(order_id, tenantId);
+        // IMPORTANT: Ensure OrderItem.findAllByOrderId checks tenant internally.
+        const allOrderItems = await OrderItem.findAllByOrderId(order_id, tenant);
         const activeItems = allOrderItems.filter(item => item.status !== 'cancelled');
 
         if (activeItems.length === 0) {
@@ -131,7 +131,7 @@ exports.processPayment = async (req, res) => {
         let discountInfo = null;
 
         if (discount_id) {
-            discountInfo = await getDiscountById(discount_id, tenantId); // Pass tenantId
+            discountInfo = await getDiscountById(discount_id, tenant); // Pass tenant
             if (discountInfo) {
                 discountAmount = totalAmount * (parseFloat(discountInfo.amount) / 100);
                 discountAmount = Math.min(discountAmount, totalAmount); // Cap discount
@@ -140,19 +140,19 @@ exports.processPayment = async (req, res) => {
 
         // Determine which promo to apply (explicitly requested or automatic)
         if (requested_promo_id) {
-            const validatedPromo = await validateSpecificPromo(requested_promo_id, tenantId); // Pass tenantId
+            const validatedPromo = await validateSpecificPromo(requested_promo_id, tenant); // Pass tenant
             if (validatedPromo) {
                 promoInfo = validatedPromo;
                 promo_id_to_use = promoInfo.promo_id;
             } else {
                 // Fallback to automatic promo if specific requested promo is invalid/inactive
-                promoInfo = await getAutomaticPromo(tenantId); // Pass tenantId
+                promoInfo = await getAutomaticPromo(tenant); // Pass tenant
                 if (promoInfo) {
                     promo_id_to_use = promoInfo.promo_id;
                 }
             }
         } else {
-            promoInfo = await getAutomaticPromo(tenantId); // Pass tenantId
+            promoInfo = await getAutomaticPromo(tenant); // Pass tenant
             if (promoInfo) {
                 promo_id_to_use = promoInfo.promo_id;
             }
@@ -163,8 +163,8 @@ exports.processPayment = async (req, res) => {
         let promoEligibleBaseAmount = 0;
 
         if (promo_id_to_use && promoInfo) { // Only proceed if a promo is determined to be used
-            // IMPORTANT: Ensure PromoItem.findByPromoId checks tenantId internally.
-            const eligiblePromoItemIds = await PromoItem.findByPromoId(promo_id_to_use, tenantId); // Pass tenantId
+            // IMPORTANT: Ensure PromoItem.findByPromoId checks tenant internally.
+            const eligiblePromoItemIds = await PromoItem.findByPromoId(promo_id_to_use, tenant); // Pass tenant
 
             // Transform eligiblePromoItemIds to a Set for efficient lookup
             const eligibleItemMenuIdsSet = new Set(eligiblePromoItemIds.map(item => item.menu_item_id)); // Assuming findByPromoId returns objects with menu_item_id
@@ -198,14 +198,14 @@ exports.processPayment = async (req, res) => {
         const amountAfterDiscountAndPromo = totalAmount - totalReduction;
 
         // Step 4: Calculate tax on adjusted amount
-        // IMPORTANT: Ensure OrderItem.getSalesTaxRate checks tenantId internally.
-        const salesTaxRate = await OrderItem.getSalesTaxRate(tenantId); // Pass tenantId
+        // IMPORTANT: Ensure OrderItem.getSalesTaxRate checks tenant internally.
+        const salesTaxRate = await OrderItem.getSalesTaxRate(tenant); // Pass tenant
         const taxRate = salesTaxRate ? parseFloat(salesTaxRate.amount) / 100 : 0.08;
         const taxAmount = amountAfterDiscountAndPromo * taxRate;
 
         // Step 5: Calculate service charge on (adjusted_amount + tax_amount)
-        // IMPORTANT: Ensure OrderItem.getServiceChargeTaxRate checks tenantId internally.
-        const serviceChargeTax = await OrderItem.getServiceChargeTaxRate(tenantId); // Pass tenantId
+        // IMPORTANT: Ensure OrderItem.getServiceChargeTaxRate checks tenant internally.
+        const serviceChargeTax = await OrderItem.getServiceChargeTaxRate(tenant); // Pass tenant
         const serviceChargeRate = serviceChargeTax ? parseFloat(serviceChargeTax.amount) / 100 : 0.10;
         const serviceChargeBase = amountAfterDiscountAndPromo + taxAmount;
         const serviceCharge = serviceChargeBase * serviceChargeRate;
@@ -244,7 +244,7 @@ exports.processPayment = async (req, res) => {
         }
 
         // Create payment record
-        // IMPORTANT: Ensure Payment.create handles tenant_id correctly.
+        // IMPORTANT: Ensure Payment.create handles tenant correctly.
         const newPayment = await Payment.create({
             order_id,
             amount: parseFloat(amount),
@@ -252,12 +252,12 @@ exports.processPayment = async (req, res) => {
             transaction_id,
             discount_id,
             promo_id: promo_id_to_use,
-            tenant_id: tenantId // Add tenant_id here for the payment record
+            tenant: tenant // Add tenant here for the payment record
         });
 
         // Calculate total payments for this order, scoped by tenant
-        // IMPORTANT: Ensure Payment.findAllByOrderId checks tenantId internally.
-        const allPayments = await Payment.findAllByOrderId(order_id, tenantId); // Pass tenantId
+        // IMPORTANT: Ensure Payment.findAllByOrderId checks tenant internally.
+        const allPayments = await Payment.findAllByOrderId(order_id, tenant); // Pass tenant
         const totalPaidAmount = allPayments.reduce((sum, payment) =>
             sum + parseFloat(payment.amount), 0
         );
@@ -284,7 +284,7 @@ exports.processPayment = async (req, res) => {
             isOrderOpen = true;
         }
 
-        // Prepare update data - include promo_amount and tenant_id
+        // Prepare update data - include promo_amount and tenant
         const updateData = {
             order_status: orderStatusId,
             is_open: isOrderOpen,
@@ -294,11 +294,11 @@ exports.processPayment = async (req, res) => {
             tax_amount: taxAmount,
             service_charge: serviceCharge,
             charged_amount: expectedPaymentAmount,
-            tenant_id: tenantId // Add tenant_id here for the update to ensure tenant scope
+            tenant: tenant // Add tenant here for the update to ensure tenant scope
         };
 
-        // IMPORTANT: Ensure Order.update handles tenantId correctly.
-        const updatedOrder = await Order.update(order_id, updateData, tenantId); // Pass tenantId for update scope
+        // IMPORTANT: Ensure Order.update handles tenant correctly.
+        const updatedOrder = await Order.update(order_id, updateData, tenant); // Pass tenant for update scope
 
         if (updatedOrder) {
             if (orderStatusString === 'closed' && updatedOrder.charged_amount == null) {
@@ -377,9 +377,9 @@ exports.processPayment = async (req, res) => {
 exports.checkout = async (req, res) => {
     const { order_id } = req.params;
     const { discount_id, promo_id: requested_promo_id } = req.body;
-    const tenantId = req.tenantId; // Retrieve tenantId from request
+    const tenant = req.tenant; // Retrieve tenant from request
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
@@ -387,19 +387,19 @@ exports.checkout = async (req, res) => {
     let promoInfo = null;
 
     try {
-        // IMPORTANT: Ensure Order.findById checks tenantId internally.
-        const order = await Order.findById(order_id, tenantId); // Pass tenantId
+        // IMPORTANT: Ensure Order.findById checks tenant internally.
+        const order = await Order.findById(order_id, tenant); // Pass tenant
         if (!order) {
             return res.status(404).json({ status: 'error', message: 'Order not found' });
         }
 
         // Ensure order also belongs to the tenant (redundant if findById already checks, but safe)
-        if (order.tenant_id !== tenantId) {
+        if (order.tenant !== tenant) {
             return res.status(403).json({ status: 'error', message: 'Access denied. Order does not belong to this tenant.' });
         }
 
-        // IMPORTANT: Ensure OrderItem.findAllByOrderId checks tenantId internally.
-        const allOrderItems = await OrderItem.findAllByOrderId(order_id, tenantId); // Pass tenantId
+        // IMPORTANT: Ensure OrderItem.findAllByOrderId checks tenant internally.
+        const allOrderItems = await OrderItem.findAllByOrderId(order_id, tenant); // Pass tenant
         const activeItems = allOrderItems.filter(item => item.status !== 'cancelled');
 
         if (activeItems.length === 0) {
@@ -417,7 +417,7 @@ exports.checkout = async (req, res) => {
         let discountInfo = null;
 
         if (discount_id) {
-            discountInfo = await getDiscountById(discount_id, tenantId); // Pass tenantId
+            discountInfo = await getDiscountById(discount_id, tenant); // Pass tenant
             if (discountInfo) {
                 discountAmount = totalAmount * (parseFloat(discountInfo.amount) / 100);
                 discountAmount = Math.min(discountAmount, totalAmount); // Cap discount
@@ -426,19 +426,19 @@ exports.checkout = async (req, res) => {
 
         // Determine which promo to apply (explicitly requested or automatic)
         if (requested_promo_id) {
-            const validatedPromo = await validateSpecificPromo(requested_promo_id, tenantId); // Pass tenantId
+            const validatedPromo = await validateSpecificPromo(requested_promo_id, tenant); // Pass tenant
             if (validatedPromo) {
                 promoInfo = validatedPromo;
                 promo_id_to_use = promoInfo.promo_id;
             } else {
                 // Fallback to automatic promo if specific requested promo is invalid/inactive
-                promoInfo = await getAutomaticPromo(tenantId); // Pass tenantId
+                promoInfo = await getAutomaticPromo(tenant); // Pass tenant
                 if (promoInfo) {
                     promo_id_to_use = promoInfo.promo_id;
                 }
             }
         } else {
-            promoInfo = await getAutomaticPromo(tenantId); // Pass tenantId
+            promoInfo = await getAutomaticPromo(tenant); // Pass tenant
             if (promoInfo) {
                 promo_id_to_use = promoInfo.promo_id;
             }
@@ -449,8 +449,8 @@ exports.checkout = async (req, res) => {
         let promoEligibleBaseAmount = 0;
 
         if (promo_id_to_use && promoInfo) { // Only proceed if a promo is determined to be used
-            // IMPORTANT: Ensure PromoItem.findByPromoId checks tenantId internally.
-            const eligiblePromoItemIds = await PromoItem.findByPromoId(promo_id_to_use, tenantId); // Pass tenantId
+            // IMPORTANT: Ensure PromoItem.findByPromoId checks tenant internally.
+            const eligiblePromoItemIds = await PromoItem.findByPromoId(promo_id_to_use, tenant); // Pass tenant
 
             // Transform eligiblePromoItemIds to a Set for efficient lookup
             const eligibleItemMenuIdsSet = new Set(eligiblePromoItemIds.map(item => item.menu_item_id)); // Assuming findByPromoId returns objects with menu_item_id
@@ -485,14 +485,14 @@ exports.checkout = async (req, res) => {
         const amountAfterDiscountAndPromo = totalAmount - totalReduction;
 
         // Step 4: Calculate tax on adjusted amount
-        // IMPORTANT: Ensure OrderItem.getSalesTaxRate checks tenantId internally.
-        const salesTaxRate = await OrderItem.getSalesTaxRate(tenantId); // Pass tenantId
+        // IMPORTANT: Ensure OrderItem.getSalesTaxRate checks tenant internally.
+        const salesTaxRate = await OrderItem.getSalesTaxRate(tenant); // Pass tenant
         const taxRate = salesTaxRate ? parseFloat(salesTaxRate.amount) / 100 : 0.08;
         const taxAmount = amountAfterDiscountAndPromo * taxRate;
 
         // Step 5: Calculate service charge on (adjusted_amount + tax_amount)
-        // IMPORTANT: Ensure OrderItem.getServiceChargeTaxRate checks tenantId internally.
-        const serviceChargeTax = await OrderItem.getServiceChargeTaxRate(tenantId); // Pass tenantId
+        // IMPORTANT: Ensure OrderItem.getServiceChargeTaxRate checks tenant internally.
+        const serviceChargeTax = await OrderItem.getServiceChargeTaxRate(tenant); // Pass tenant
         const serviceChargeRate = serviceChargeTax ? parseFloat(serviceChargeTax.amount) / 100 : 0.10;
         const serviceChargeBase = amountAfterDiscountAndPromo + taxAmount;
         const serviceCharge = serviceChargeBase * serviceChargeRate;
@@ -554,15 +554,15 @@ exports.checkout = async (req, res) => {
  * @param {object} res - The response object.
  */
 exports.getAllPaymentsWithOrderItemsGroupedBySession = async (req, res) => {
-    const tenantId = req.tenantId; // Retrieve tenantId
+    const tenant = req.tenant; // Retrieve tenant
 
-    if (!tenantId) {
+    if (!tenant) {
         return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
     }
 
     try {
-        // IMPORTANT: Ensure this method in Payment model takes tenantId
-        const groupedPayments = await Payment.findAllWithOrderItemsGroupedBySession(tenantId);
+        // IMPORTANT: Ensure this method in Payment model takes tenant
+        const groupedPayments = await Payment.findAllWithOrderItemsGroupedBySession(tenant);
 
         res.status(200).json({ status: 'success', data: groupedPayments });
 
@@ -581,12 +581,12 @@ exports.getAllPaymentsWithOrderItemsGroupedBySession = async (req, res) => {
  * @param {object} res - The response object.
  */
 exports.getPaymentsBySessionAndMode = async (req, res) => {
-    const tenantId = req.tenantId; // Retrieve tenantId
+    const tenant = req.tenant; // Retrieve tenant
 
     const { cashier_session_id, payment_mode_id } = req.params;
 
     try {
-        if (!tenantId) { // Tenant ID check here too
+        if (!tenant) { // Tenant ID check here too
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
         if (!cashier_session_id || !payment_mode_id) {
@@ -596,11 +596,11 @@ exports.getPaymentsBySessionAndMode = async (req, res) => {
             });
         }
 
-        // IMPORTANT: Ensure this method in Payment model takes tenantId
+        // IMPORTANT: Ensure this method in Payment model takes tenant
         const payments = await Payment.findAllBySessionAndPaymentMode(
             cashier_session_id,
             payment_mode_id,
-            tenantId // Pass tenantId
+            tenant // Pass tenant
         );
         res.status(200).json({ status: 'success', data: payments });
 

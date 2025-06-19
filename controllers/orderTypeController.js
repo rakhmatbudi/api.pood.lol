@@ -1,28 +1,28 @@
 const OrderType = require('../models/OrderType');
 
 /**
- * Helper to ensure tenantId is present
+ * Helper to ensure tenant is present
  */
-const getTenantId = (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
-    if (!tenantId) {
+const gettenant = (req, res) => {
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
+    if (!tenant) {
         res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         return null;
     }
-    return tenantId;
+    return tenant;
 };
 
 exports.createOrderType = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
         const { name } = req.body;
         if (!name) {
             return res.status(400).json({ status: 'error', message: 'Order type name is required' });
         }
-        // Pass tenantId to the create method
-        const newOrderType = await OrderType.create(name, tenantId);
+        // Pass tenant to the create method
+        const newOrderType = await OrderType.create(name, tenant);
         res.status(201).json({ status: 'success', data: newOrderType });
     } catch (error) {
         console.error('Error creating order type:', error);
@@ -31,12 +31,12 @@ exports.createOrderType = async (req, res) => {
 };
 
 exports.getAllOrderTypes = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to retrieve order types specific to this tenant
-        const orderTypes = await OrderType.findAll(tenantId);
+        // Pass tenant to retrieve order types specific to this tenant
+        const orderTypes = await OrderType.findAll(tenant);
         res.status(200).json({
             status: 'success',
             count: orderTypes.length,
@@ -49,13 +49,13 @@ exports.getAllOrderTypes = async (req, res) => {
 };
 
 exports.getOrderTypeById = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
         const { id } = req.params;
-        // Pass tenantId to find the order type belonging to this tenant
-        const orderType = await OrderType.findById(id, tenantId);
+        // Pass tenant to find the order type belonging to this tenant
+        const orderType = await OrderType.findById(id, tenant);
         if (!orderType) {
             // Be specific: not found OR does not belong to this tenant
             return res.status(404).json({ status: 'error', message: 'Order type not found or does not belong to this tenant' });
@@ -68,8 +68,8 @@ exports.getOrderTypeById = async (req, res) => {
 };
 
 exports.updateOrderType = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
         const { id } = req.params;
@@ -77,8 +77,8 @@ exports.updateOrderType = async (req, res) => {
         if (!name) {
             return res.status(400).json({ status: 'error', message: 'Order type name is required for update' });
         }
-        // Pass tenantId to update the order type belonging to this tenant
-        const updatedOrderType = await OrderType.update(id, name, tenantId);
+        // Pass tenant to update the order type belonging to this tenant
+        const updatedOrderType = await OrderType.update(id, name, tenant);
         if (!updatedOrderType) {
             // Be specific: not found OR does not belong to this tenant
             return res.status(404).json({ status: 'error', message: 'Order type not found or does not belong to this tenant' });
@@ -91,13 +91,13 @@ exports.updateOrderType = async (req, res) => {
 };
 
 exports.deleteOrderType = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
         const { id } = req.params;
-        // Pass tenantId to delete the order type belonging to this tenant
-        const deletedOrderType = await OrderType.delete(id, tenantId);
+        // Pass tenant to delete the order type belonging to this tenant
+        const deletedOrderType = await OrderType.delete(id, tenant);
         if (!deletedOrderType) {
             // Be specific: not found OR does not belong to this tenant
             return res.status(404).json({ status: 'error', message: 'Order type not found or does not belong to this tenant' });

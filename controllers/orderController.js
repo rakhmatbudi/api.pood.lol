@@ -5,9 +5,9 @@ const OrderItem = require('../models/OrderItem');
 
 exports.getAllOrders = async (req, res) => {
   try {
-    const tenantId = req.tenantId;
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-    const orders = await Order.findAll(tenantId);
+    const tenant = req.tenant;
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const orders = await Order.findAll(tenant);
     res.status(200).json({
       status: 'success',
       count: orders.length,
@@ -26,9 +26,9 @@ exports.getAllOrders = async (req, res) => {
 
 exports.getOrderById = async (req, res) => {
   try {
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-    const order = await Order.findById(req.params.id, tenantId);
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const order = await Order.findById(req.params.id, tenant);
 
     if (!order) {
       return res.status(404).json({
@@ -52,9 +52,9 @@ exports.getOrderById = async (req, res) => {
 
 exports.getAllOrdersGroupedBySessionDescending = async (req, res) => {
   try {
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-    const groupedOrders = await Order.findAllGroupedBySessionDescending(tenantId);
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const groupedOrders = await Order.findAllGroupedBySessionDescending(tenant);
     
     res.status(200).json({ status: 'success', data: groupedOrders });
   } catch (error) {
@@ -65,9 +65,9 @@ exports.getAllOrdersGroupedBySessionDescending = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
     try {
-        const tenantId = req.tenantId; // <--- GET TENANT ID FROM req.tenantId
+        const tenant = req.tenant; // <--- GET TENANT ID FROM req.tenant
 
-        if (!tenantId) { // Safety check (though middleware should handle this)
+        if (!tenant) { // Safety check (though middleware should handle this)
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required for this operation.' });
         }
 
@@ -78,9 +78,9 @@ exports.createOrder = async (req, res) => {
             cashier_session_id: req.body.cashier_session_id,
             order_type_id: req.body.order_type_id,
             order_status: req.body.order_status,
-            tenant: tenantId // <--- CRITICAL: ADD THE TENANT ID HERE!
+            tenant: tenant // <--- CRITICAL: ADD THE TENANT ID HERE!
         };
-        // Or, more succinctly: const newOrderData = { ...req.body, tenant: tenantId };
+        // Or, more succinctly: const newOrderData = { ...req.body, tenant: tenant };
 
         const newOrder = await Order.create(newOrderData);
         res.status(201).json({ status: 'success', data: newOrder });
@@ -93,14 +93,14 @@ exports.createOrder = async (req, res) => {
 exports.cancelOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const tenantId = req.tenantId; // Or req.body.tenant, depending on how tempTenantMiddleware sets it
+        const tenant = req.tenant; // Or req.body.tenant, depending on how tempTenantMiddleware sets it
 
-        if (!tenantId) {
+        if (!tenant) {
             return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         }
 
-        // Call the model method, passing the tenantId
-        const updatedOrder = await Order.updateOrderStatus(id, 'cancelled', tenantId);
+        // Call the model method, passing the tenant
+        const updatedOrder = await Order.updateOrderStatus(id, 'cancelled', tenant);
 
         if (!updatedOrder) {
             return res.status(404).json({
@@ -111,11 +111,11 @@ exports.cancelOrder = async (req, res) => {
 
         res.status(200).json({
             status: 'success',
-            message: `Order ${id} has been cancelled for tenant ${tenantId}.`,
+            message: `Order ${id} has been cancelled for tenant ${tenant}.`,
             data: updatedOrder
         });
     } catch (error) {
-        console.error(`Error cancelling order ${req.params.id} for tenant ${req.tenantId}:`, error);
+        console.error(`Error cancelling order ${req.params.id} for tenant ${req.tenant}:`, error);
         res.status(500).json({
             status: 'error',
             message: 'Failed to cancel order',
@@ -128,12 +128,12 @@ exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
         const { status } = req.body;
-        const tenantId = req.tenantId; // Get tenant ID
-        if (!tenantId) { return res.status(400).json({ message: 'Tenant ID is required' }); }
+        const tenant = req.tenant; // Get tenant ID
+        if (!tenant) { return res.status(400).json({ message: 'Tenant ID is required' }); }
 
         if (!status) { return res.status(400).json({ message: 'Status is required' }); }
 
-        const updatedOrder = await Order.updateOrderStatus(id, status, tenantId);
+        const updatedOrder = await Order.updateOrderStatus(id, status, tenant);
 
     if (!updatedOrder) {
       return res.status(404).json({ message: 'Order not found' });
@@ -148,11 +148,11 @@ exports.updateOrderStatus = async (req, res) => {
 
 exports.updateOrder = async (req, res) => {
   try {
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
-    // Combine req.body with tenantId for the update
-    const updateData = { ...req.body, tenant: tenantId };
+    // Combine req.body with tenant for the update
+    const updateData = { ...req.body, tenant: tenant };
     const updatedOrder = await Order.update(req.params.id, updateData);
 
     if (!updatedOrder) {
@@ -177,9 +177,9 @@ exports.updateOrder = async (req, res) => {
 
 exports.deleteOrder = async (req, res) => {
   try {
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-    const deletedOrder = await Order.delete(req.params.id, tenantId);
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const deletedOrder = await Order.delete(req.params.id, tenant);
 
     if (!deletedOrder) {
       return res.status(404).json({
@@ -204,8 +204,8 @@ exports.deleteOrder = async (req, res) => {
 exports.getOrdersByStatus = async (req, res) => {
   try {
     const { status } = req.params;
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
     // Validate status parameter
     if (!['open', 'closed', 'voided'].includes(status)) {
@@ -215,7 +215,7 @@ exports.getOrdersByStatus = async (req, res) => {
       });
     }
 
-    const orders = await Order.findByStatus(status, tenantId);
+    const orders = await Order.findByStatus(status, tenant);
 
     res.status(200).json({
       status: 'success',
@@ -233,9 +233,9 @@ exports.getOrdersByStatus = async (req, res) => {
 
 exports.getOpenOrders = async (req, res) => {
   try {
-    const tenantId = req.tenantId; // Get tenant ID
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-        const orders = await Order.findOpenOrders(tenantId);
+    const tenant = req.tenant; // Get tenant ID
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const orders = await Order.findOpenOrders(tenant);
 
     res.status(200).json({
       status: 'success',
@@ -254,9 +254,9 @@ exports.getOpenOrders = async (req, res) => {
 exports.getOpenOrdersBySession = async (req, res) => {
   const { cashier_session_id } = req.params;
   try {
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-    const orders = await Order.findOpenOrdersBySession(cashier_session_id, tenantId);
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const orders = await Order.findOpenOrdersBySession(cashier_session_id, tenant);
 
     res.status(200).json({
       status: 'success',
@@ -274,13 +274,13 @@ exports.getOpenOrdersBySession = async (req, res) => {
 
 exports.addOrderItem = async (req, res) => {
     const { orderId } = req.params;
-    const tenantId = req.tenantId;
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
-    const orderItemData = { ...req.body, order_id: orderId, tenant: tenantId };
+    const tenant = req.tenant;
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const orderItemData = { ...req.body, order_id: orderId, tenant: tenant };
 
     try {
         // Check if the order exists for THIS TENANT
-        const order = await Order.findById(orderId, tenantId);
+        const order = await Order.findById(orderId, tenant);
         if (!order) {
             return res.status(404).json({ status: 'error', message: 'Order not found' });
         }
@@ -291,7 +291,7 @@ exports.addOrderItem = async (req, res) => {
         // --- Refinement #2: Recalculate and update the order's totals using the model's dedicated method ---
         // This assumes your Order model has a method like `updateOrderTotalServiceChargeAndTax`
         // that handles summing up order items, applying service charges, and taxes.
-        const updatedOrder = await Order.updateOrderTotalServiceChargeAndTax(orderId, tenantId);
+        const updatedOrder = await Order.updateOrderTotalServiceChargeAndTax(orderId, tenant);
 
         res.status(201).json({ status: 'success', data: { order: updatedOrder, orderItem: newOrderItem } });
     } catch (error) {
@@ -303,8 +303,8 @@ exports.addOrderItem = async (req, res) => {
 exports.updateOrderItemStatus = async (req, res) => {
     // console.log("updating order item"); // This log can be removed in production
     const { orderId, itemId } = req.params;
-    const tenantId = req.tenantId; // Get tenant ID
-    if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+    const tenant = req.tenant; // Get tenant ID
+    if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
     const { status } = req.body; // Expecting only 'status' in the request body
 
     try {
@@ -319,13 +319,13 @@ exports.updateOrderItemStatus = async (req, res) => {
         }
 
         // 2. Verify the order exists (optional but good practice to ensure integrity) for THIS TENANT
-        const order = await Order.findById(orderId, tenantId);
+        const order = await Order.findById(orderId, tenant);
         if (!order) {
             return res.status(404).json({ status: 'error', message: 'Order not found' });
         }
 
         // 3. Update only the status of the order item
-        const updatedOrderItem = await OrderItem.update(itemId, { status, tenant: tenantId });
+        const updatedOrderItem = await OrderItem.update(itemId, { status, tenant: tenant });
 
         if (!updatedOrderItem) {
             return res.status(404).json({ status: 'error', message: 'Order item not found or status is the same' });
@@ -334,7 +334,7 @@ exports.updateOrderItemStatus = async (req, res) => {
         // --- Refinement #3: Recalculate total amount if status changes affect pricing ---
         // If your business logic dictates that certain statuses (like 'cancelled' or 'returned')
         // should remove the item's cost from the order total, then this recalculation is necessary.
-        const updatedOrder = await Order.updateOrderTotalServiceChargeAndTax(orderId, tenantId);
+        const updatedOrder = await Order.updateOrderTotalServiceChargeAndTax(orderId, tenant);
 
 
         res.status(200).json({
@@ -352,8 +352,8 @@ exports.updateOrderItemStatus = async (req, res) => {
 // --- New Controller Method for /orders/sessions/:sessionId ---
 exports.getOrdersBySessionId = async (req, res) => {
   const { sessionId } = req.params;
-  const tenantId = req.tenantId; // Get tenant ID
-  if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+  const tenant = req.tenant; // Get tenant ID
+  if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
   // Basic validation for sessionId
   if (isNaN(sessionId) || parseInt(sessionId) <= 0) {
@@ -365,7 +365,7 @@ exports.getOrdersBySessionId = async (req, res) => {
 
   try {
     // Call the static method from the Order model to fetch data
-    const orders = await Order.getOrdersBySessionId(parseInt(sessionId), tenantId);
+    const orders = await Order.getOrdersBySessionId(parseInt(sessionId), tenant);
 
     res.status(200).json({
       status: 'success',

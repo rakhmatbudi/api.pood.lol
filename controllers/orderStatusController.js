@@ -3,10 +3,10 @@ const OrderStatus = require('../models/OrderStatus');
 
 exports.getAllOrderStatuses = async (req, res) => {
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
-        const orderStatuses = await OrderStatus.findAll(tenantId);
+        const orderStatuses = await OrderStatus.findAll(tenant);
         res.status(200).json({ status: 'success', data: orderStatuses });
         console.log("getting order status");
     } catch (error) {
@@ -18,10 +18,10 @@ exports.getAllOrderStatuses = async (req, res) => {
 exports.getOrderStatusById = async (req, res) => {
     try {
         const { id } = req.params;
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
-        const orderStatus = await OrderStatus.findById(id, tenantId);
+        const orderStatus = await OrderStatus.findById(id, tenant);
         if (!orderStatus) {
             return res.status(404).json({ status: 'error', message: 'Order status not found' });
         }
@@ -34,15 +34,15 @@ exports.getOrderStatusById = async (req, res) => {
 
 exports.createOrderStatus = async (req, res) => {
     try {
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
         const { name, description } = req.body;
         if (!name) {
             return res.status(400).json({ status: 'error', message: 'Order status name is required' });
         }
 
-        const newOrderStatus = await OrderStatus.create({ name, description, tenant: tenantId }); // Add tenantId
+        const newOrderStatus = await OrderStatus.create({ name, description, tenant: tenant }); // Add tenant
         res.status(201).json({ status: 'success', data: newOrderStatus });
     } catch (error) {
         console.error('Error creating order status:', error);
@@ -53,12 +53,12 @@ exports.createOrderStatus = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
         const { name, description } = req.body;
-        // Construct update data including tenantId to ensure tenant-specific update
-        const updateData = { name, description, tenant: tenantId };
+        // Construct update data including tenant to ensure tenant-specific update
+        const updateData = { name, description, tenant: tenant };
         const updatedOrderStatus = await OrderStatus.update(id, updateData);
         if (!updatedOrderStatus) {
             return res.status(404).json({ status: 'error', message: 'Order status not found or no fields to update' });
@@ -73,10 +73,10 @@ exports.updateOrderStatus = async (req, res) => {
 exports.deleteOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const tenantId = req.tenantId;
-        if (!tenantId) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
+        const tenant = req.tenant;
+        if (!tenant) { return res.status(400).json({ status: 'error', message: 'Tenant ID is required.' }); }
 
-        const deletedOrderStatus = await OrderStatus.delete(id, tenantId); // Pass tenantId
+        const deletedOrderStatus = await OrderStatus.delete(id, tenant); // Pass tenant
         if (!deletedOrderStatus) {
             return res.status(404).json({ status: 'error', message: 'Order status not found' });
         }

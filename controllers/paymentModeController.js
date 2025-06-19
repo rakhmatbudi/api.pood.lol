@@ -2,24 +2,24 @@
 const PaymentMode = require('../models/PaymentMode');
 
 /**
- * Helper to ensure tenantId is present
+ * Helper to ensure tenant is present
  */
-const getTenantId = (req, res) => {
-    const tenantId = req.tenantId; // Assuming tenantId is attached by middleware
-    if (!tenantId) {
+const gettenant = (req, res) => {
+    const tenant = req.tenant; // Assuming tenant is attached by middleware
+    if (!tenant) {
         res.status(400).json({ status: 'error', message: 'Tenant ID is required.' });
         return null;
     }
-    return tenantId;
+    return tenant;
 };
 
 exports.getAllPaymentModes = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Pass tenantId to retrieve payment modes specific to this tenant
-        const paymentModes = await PaymentMode.findAll(tenantId);
+        // Pass tenant to retrieve payment modes specific to this tenant
+        const paymentModes = await PaymentMode.findAll(tenant);
         res.status(200).json({ status: 'success', data: paymentModes });
     } catch (error) {
         console.error('Error fetching payment modes:', error);
@@ -28,13 +28,13 @@ exports.getAllPaymentModes = async (req, res) => {
 };
 
 exports.getPaymentModeById = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     const { id } = req.params;
     try {
-        // Pass tenantId to find the payment mode belonging to this tenant
-        const paymentMode = await PaymentMode.findById(id, tenantId);
+        // Pass tenant to find the payment mode belonging to this tenant
+        const paymentMode = await PaymentMode.findById(id, tenant);
         if (paymentMode) {
             res.status(200).json({ status: 'success', data: paymentMode });
         } else {
@@ -48,12 +48,12 @@ exports.getPaymentModeById = async (req, res) => {
 };
 
 exports.createPaymentMode = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     try {
-        // Add tenant_id to the payment mode data before creating
-        const paymentModeData = { ...req.body, tenant_id: tenantId };
+        // Add tenant to the payment mode data before creating
+        const paymentModeData = { ...req.body, tenant: tenant };
         const newPaymentMode = await PaymentMode.create(paymentModeData);
         res.status(201).json({ status: 'success', data: newPaymentMode });
     } catch (error) {
@@ -63,13 +63,13 @@ exports.createPaymentMode = async (req, res) => {
 };
 
 exports.updatePaymentMode = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     const { id } = req.params;
     try {
-        // Pass tenantId to update the payment mode belonging to this tenant
-        const updatedPaymentMode = await PaymentMode.update(id, req.body, tenantId);
+        // Pass tenant to update the payment mode belonging to this tenant
+        const updatedPaymentMode = await PaymentMode.update(id, req.body, tenant);
         if (updatedPaymentMode) {
             res.status(200).json({ status: 'success', data: updatedPaymentMode });
         } else {
@@ -83,13 +83,13 @@ exports.updatePaymentMode = async (req, res) => {
 };
 
 exports.deletePaymentMode = async (req, res) => {
-    const tenantId = getTenantId(req, res);
-    if (!tenantId) return; // Stop if tenantId is missing
+    const tenant = gettenant(req, res);
+    if (!tenant) return; // Stop if tenant is missing
 
     const { id } = req.params;
     try {
-        // Pass tenantId to delete the payment mode belonging to this tenant
-        const deletedPaymentMode = await PaymentMode.delete(id, tenantId);
+        // Pass tenant to delete the payment mode belonging to this tenant
+        const deletedPaymentMode = await PaymentMode.delete(id, tenant);
         if (deletedPaymentMode) {
             res.status(200).json({ status: 'success', data: { message: 'Payment mode deleted', paymentMode: deletedPaymentMode } });
         } else {

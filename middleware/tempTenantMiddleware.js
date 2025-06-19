@@ -13,7 +13,7 @@ const getTempTenantId = (req, res, next) => {
     }
 
     // Attach to req directly for multi-tenancy filtering later
-    req.tenantId = tempTenantId;
+    req.tenant = tempTenantId;
 
     next();
 };
