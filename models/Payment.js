@@ -113,6 +113,7 @@ class Payment {
         AND o.tenant = $3; -- Ensure orders are tenant-specific
     `;
     const values = [cashierSessionId, paymentModeId, tenant];
+    console.log(query, values);
     const { rows } = await db.query(query, values);
     return rows;
   }
