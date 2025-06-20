@@ -208,24 +208,15 @@ class User {
         values.push(id); // This will be $paramIndex for the id
         values.push(tenant); // This will be $paramIndex + 1 for the tenant
 
-        const query = `
-            UPDATE public.users
-            SET ${fields.join(', ')}
-            WHERE id = $${paramIndex++} AND tenant = $${paramIndex++}
-            RETURNING id, name, email, role_id, tenant, created_at, updated_at
-        `;
         // Corrected paramIndex for WHERE clause referencing the final values in the array
-        const correctQuery = `
+        const query = `
             UPDATE public.users
             SET ${fields.join(', ')}
             WHERE id = $${values.length - 1} AND tenant = $${values.length}
             RETURNING id, name, email, role_id, tenant, created_at, updated_at
         `;
 
-        // console.log("Update Query:", correctQuery);
-        // console.log("Update Values:", values);
-
-        const { rows } = await db.query(correctQuery, values);
+        const { rows } = await db.query(query, values);
         return rows[0] || null;
     }
 

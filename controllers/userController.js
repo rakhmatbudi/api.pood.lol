@@ -13,8 +13,12 @@ exports.getUserList = async (req, res) => {
     // req.tenant is now guaranteed to be set by tenantResolverMiddleware for this authenticated route.
     const tenant = req.tenant;
 
-    // Optional: Add more specific role-based authorization here if needed, e.g., only admins can list all users.
-    // if (req.user.role !== 1) { return res.status(403).json(...); }
+    // Authorization: Only administrators (role_id 1) can list all users.
+    // Ensure you have a central place for role IDs (e.g., a constants file or an enum)
+    // For now, assuming ADMIN role_id is 1
+    if (req.user.role_id !== 1) { // <-- CORRECTED: Use req.user.role_id
+        return res.status(403).json({ status: 'error', message: 'Forbidden: Only administrators can view the user list.' });
+    }
 
     try {
         const { role, limit, offset, orderBy, orderDirection } = req.query;
@@ -83,15 +87,11 @@ exports.login = async (req, res) => {
             });
         }
 
-        // --- Crucial Step for your Requirement ---
-        // For *this specific request's lifecycle*, set req.tenant.
-        // For *subsequent requests*, the JWT and tenantResolverMiddleware will handle it.
-        req.tenant = user.tenant;
-        // --- End Crucial Step ---
+        // Removed: req.tenant = user.tenant; // This line is not strictly needed for this flow
 
         // 4. Generate JWT Token (payload includes tenant_code from user record)
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role_id, tenant: user.tenant },
+            { id: user.id, email: user.email, role_id: user.role_id, tenant: user.tenant }, // <-- CORRECTED: use role_id directly from user model
             process.env.JWT_SECRET,
             { expiresIn: TOKEN_EXPIRES_IN }
         );
@@ -121,10 +121,10 @@ exports.createUser = async (req, res) => {
     // req.tenant is now guaranteed to be set by tenantResolverMiddleware for this authenticated route.
     const tenant = req.tenant; // Use req.tenant directly
 
-    // Authorization: Ensure the authenticated user has permission to create users.
-    // e.g., only administrators (role_id 1) can create new users, and only within their own tenant.
+    // Authorization: Only administrators (role_id 1) can create new users,
+    // and they can only create users within their own tenant.
     // tenantResolverMiddleware ensures req.user and req.tenant are present.
-    if (req.user.role !== 1 || req.user.tenant !== tenant) {
+    if (req.user.role_id !== 1 || req.user.tenant !== tenant) { // <-- CORRECTED: Use req.user.role_id
         return res.status(403).json({ status: 'error', message: 'Forbidden: You do not have permission to create users.' });
     }
 
@@ -133,7 +133,7 @@ exports.createUser = async (req, res) => {
             name: Joi.string().required().min(2).max(100),
             email: Joi.string().email().required(),
             password: Joi.string().required().min(8),
-            role_id: Joi.number().integer().min(1)
+            role_id: Joi.number().integer().min(1).required() // role_id should be required for new user
         });
 
         const { error, value } = schema.validate(req.body);
@@ -147,6 +147,7 @@ exports.createUser = async (req, res) => {
         }
 
         // Check if email already exists within THIS TENANT (from req.tenant)
+        // CRITICAL: Ensure User.emailExists method is tenant-scoped (e.g., WHERE email = $1 AND tenant = $2)
         const emailExists = await User.emailExists(value.email, tenant);
         if (emailExists) {
             return res.status(400).json({
@@ -199,7 +200,7 @@ exports.updateUser = async (req, res) => {
     // Authorization check (tenantResolverMiddleware ensures req.user and req.tenant exist)
     const userId = req.params.id;
     // Admin can update any user in their tenant; user can only update themselves.
-    if (req.user.role !== 1 && String(req.user.id) !== userId) {
+    if (req.user.role_id !== 1 && String(req.user.id) !== userId) { // <-- CORRECTED: Use req.user.role_id
         return res.status(403).json({
             status: 'error',
             message: 'Forbidden: You can only update your own profile unless you are an administrator.'
@@ -227,7 +228,9 @@ exports.updateUser = async (req, res) => {
         }
 
         if (value.email) {
-            const existingUserWithEmail = await User.findByEmail(value.email, tenant); // Check uniqueness within req.tenant
+            // Check uniqueness within req.tenant, excluding the current user being updated.
+            // CRITICAL: Ensure User.findByEmail method is tenant-scoped (e.g., WHERE email = $1 AND tenant = $2)
+            const existingUserWithEmail = await User.findByEmail(value.email, tenant);
             if (existingUserWithEmail && String(existingUserWithEmail.id) !== userId) {
                 return res.status(400).json({
                     status: 'error',
@@ -240,7 +243,8 @@ exports.updateUser = async (req, res) => {
             value.password = await bcrypt.hash(value.password, 10);
         }
 
-        const updatedUser = await User.update(userId, tenant, value); // Use req.tenant
+        // Pass userId, tenant, and the update data to the User model
+        const updatedUser = await User.update(userId, tenant, value);
 
         if (!updatedUser) {
             return res.status(404).json({
@@ -276,13 +280,14 @@ exports.deleteUser = async (req, res) => {
 
     // Authorization check (tenantResolverMiddleware ensures req.user and req.tenant exist)
     const userId = req.params.id;
-    // Only administrators can delete users, and they cannot delete themselves.
-    if (req.user.role !== 1) {
+    // Only administrators (role_id 1) can delete users.
+    if (req.user.role_id !== 1) { // <-- CORRECTED: Use req.user.role_id
         return res.status(403).json({
             status: 'error',
             message: 'Forbidden: Only administrators can delete users.'
         });
     }
+    // Prevent a user from deleting their own account.
     if (String(req.user.id) === userId) {
         return res.status(403).json({
             status: 'error',
@@ -291,7 +296,8 @@ exports.deleteUser = async (req, res) => {
     }
 
     try {
-        const deletedCount = await User.delete(userId, tenant); // Use req.tenant
+        // Pass userId and tenant to the User model
+        const deletedCount = await User.delete(userId, tenant);
 
         if (deletedCount === 0) {
             return res.status(404).json({
@@ -300,7 +306,7 @@ exports.deleteUser = async (req, res) => {
             });
         }
 
-        res.status(204).send();
+        res.status(204).send(); // 204 No Content for successful deletion
 
     } catch (error) {
         console.error('Error deleting user:', error);

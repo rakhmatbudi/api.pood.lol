@@ -1,12 +1,17 @@
 const express = require('express');
 const paymentController = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/authMiddleware'); // Essential for authentication
-const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware'); 
+const tenantResolverMiddleware = require('../middleware/tenantResolverMiddleware');
 
 const router = express.Router();
 
+// Apply authentication and tenant resolution middleware to ALL subsequent routes in this router.
+router.use(authMiddleware, tenantResolverMiddleware);
+
+// All routes below this point will automatically have authMiddleware and tenantResolverMiddleware applied.
+
 // Route for processing new payment
-router.post('/', authMiddleware, tenantResolverMiddleware, paymentController.processPayment); // Added getTempTenantId
+router.post('/', paymentController.processPayment);
 // Expected request body for processPayment:
 // {
 //    "order_id": 5,      // The ID of the order being paid for
@@ -18,7 +23,7 @@ router.post('/', authMiddleware, tenantResolverMiddleware, paymentController.pro
 // }
 
 // NEW Route for calculating checkout bill without processing payment
-router.post('/checkout/:order_id', authMiddleware, tenantResolverMiddleware, paymentController.checkout); // Added getTempTenantId
+router.post('/checkout/:order_id', paymentController.checkout);
 // Expected request body for checkout (optional for discount/promo):
 // {
 //    "discount_id": null, // Optional: ID of a discount to apply for calculation
@@ -27,10 +32,10 @@ router.post('/checkout/:order_id', authMiddleware, tenantResolverMiddleware, pay
 // The order_id will be taken from the URL parameter.
 
 // Route for getting all payments grouped by session
-router.get('/grouped/sessions/details', authMiddleware, tenantResolverMiddleware, paymentController.getAllPaymentsWithOrderItemsGroupedBySession); // Added getTempTenantId
+router.get('/grouped/sessions/details', paymentController.getAllPaymentsWithOrderItemsGroupedBySession);
 
 // Route for getting payments by session and mode
-router.get('/session/:cashier_session_id/mode/:payment_mode_id', authMiddleware, tenantResolverMiddleware, paymentController.getPaymentsBySessionAndMode); // Added getTempTenantId
+router.get('/session/:cashier_session_id/mode/:payment_mode_id', paymentController.getPaymentsBySessionAndMode);
 
 
 module.exports = router;
