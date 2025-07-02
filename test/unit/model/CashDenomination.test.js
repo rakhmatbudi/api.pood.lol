@@ -1,9 +1,9 @@
 // __tests__/models/CashDenomination.test.js
-const CashDenomination = require('../../models/CashDenomination');
-const db = require('../../config/db'); // Import the actual db module to mock it
+const CashDenomination = require('../../../models/CashDenomination');
+const db = require('../../../config/db'); // Import the actual db module to mock it
 
 // Mock the db module
-jest.mock('../../config/db', () => ({
+jest.mock('../../../config/db', () => ({
   query: jest.fn(), // Mock the query function
 }));
 

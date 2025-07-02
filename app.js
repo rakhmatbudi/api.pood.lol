@@ -1,4 +1,4 @@
-//apps.js
+// apps.js
 
 const express = require('express');
 const cors = require('cors');
@@ -17,7 +17,7 @@ const orderRoutes = require('./routes/orders');
 const cashierSessionRoutes = require('./routes/cashierSessions');
 const userRoutes = require('./routes/users');
 const cashDenominationRoutes = require('./routes/cashDenominations');
-const menuItemRoutes = require('./routes/menuItems'); // This is your existing menu item route
+const menuItemRoutes = require('./routes/menuItems'); 
 const paymentRoutes = require('./routes/payments');
 const paymentModeRoutes = require('./routes/paymentModes');
 const dataSyncRoutes = require('./routes/dataSyncServices');
@@ -30,6 +30,7 @@ const orderStatusesRoutes = require('./routes/orderStatuses');
 const promoRoutes = require('./routes/promos'); 
 const menuCategoryRoutes = require('./routes/menuCategories');
 const menuItemVariantRoutes = require('./routes/menuItemVariants');
+const otherRevenueRoutes = require('./routes/otherRevenues'); 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,7 +56,7 @@ connectAndSyncDatabase();
 
 // --- MIDDLEWARE ---
 app.use(helmet()); // Basic security headers
-app.use(cors());   // Enable Cross-Origin Resource Sharing
+app.use(cors());    // Enable Cross-Origin Resource Sharing
 app.use(express.json()); // Parse JSON request bodies
 
 // --- ROUTES ---
@@ -76,23 +77,24 @@ app.use('/order-statuses', orderStatusesRoutes);
 app.use('/promos', promoRoutes); 
 app.use('/menu-categories', menuCategoryRoutes);
 app.use('/menu-item-variants', menuItemVariantRoutes);
+app.use('/other-revenues', otherRevenueRoutes); 
 
 // Root route
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Orders API' });
+    res.json({ message: 'Welcome to Orders API' });
 });
 
 // --- ERROR HANDLING MIDDLEWARE ---
 app.use((err, req, res, next) => {
-  console.error(err.stack); // Log the error stack for debugging
-  res.status(500).json({
-    status: 'error',
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : {} // Provide more detail in development
-  });
+    console.error(err.stack); // Log the error stack for debugging
+    res.status(500).json({
+        status: 'error',
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : {} // Provide more detail in development
+    });
 });
 
 // --- START SERVER ---
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+    console.log(`Server running on port ${PORT}`);
+});

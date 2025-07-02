@@ -134,7 +134,7 @@ describe('MenuItem Model', () => {
         const mockMenuItemId = 'item1';
 
         it('should throw an error if tenantId is not provided', async () => {
-            await expect(MenuItem.findById(mockMenuItemId, undefined)).rejects.toThrow('Tenant ID is required to find a menu item by ID.');
+            await expect(MenuItem.findById(mockMenuItemId, undefined)).rejects.toThrow('Tenant is required to find a menu item by ID.');
         });
 
         it('should return a menu item with variants if found for the given tenant', async () => {

@@ -49,10 +49,13 @@ class CashierSession {
      * @returns {Promise} - Promise resolving to the session or null
      */
     static async getById(id, tenant) { // Added tenant
+        var sql = 'SELECT * FROM cashier_sessions WHERE id = $1 AND tenant = $2';
         const result = await db.query(
-            'SELECT * FROM cashier_sessions WHERE id = $1 AND tenant = $2', // Filter by tenant
+            sql, // Filter by tenant
             [id, tenant]
         );
+        
+        
 
         return result.rows.length > 0 ? result.rows[0] : null;
     }
@@ -79,15 +82,16 @@ class CashierSession {
      */
     static async getCurrentSession(tenant) { // Added tenant
         try {
-            const result = await db.query(
-                `SELECT u.id user_id, u.name as cashier_name, cs.id session_id,
+            var sql = `SELECT u.id user_id, u.name as cashier_name, cs.id session_id,
                         cs.opening_amount, cs.notes, cs.opened_at
                  FROM cashier_sessions cs
                  INNER JOIN users u ON u.id = cs.user_id AND u.tenant = $1 -- Join with users filtered by tenant
-                 WHERE cs.closed_at IS NULL AND cs.tenant = $1`, // Filter cashier_sessions by tenant
+                 WHERE cs.closed_at IS NULL AND cs.tenant = $1`; // Filter cashier_sessions by tenant
+            const result = await db.query(
+                sql,
                 [tenant]
             );
-
+            
             if (result.rows.length > 0) {
                 return result.rows[0];
             } else {
