@@ -31,6 +31,8 @@ const promoRoutes = require('./routes/promos');
 const menuCategoryRoutes = require('./routes/menuCategories');
 const menuItemVariantRoutes = require('./routes/menuItemVariants');
 const otherRevenueRoutes = require('./routes/otherRevenues'); 
+const revenueCategoryRoutes = require('./routes/revenueCategories'); 
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -78,6 +80,7 @@ app.use('/promos', promoRoutes);
 app.use('/menu-categories', menuCategoryRoutes);
 app.use('/menu-item-variants', menuItemVariantRoutes);
 app.use('/other-revenues', otherRevenueRoutes); 
+app.use('/revenue-categories', revenueCategoryRoutes);
 
 // Root route
 app.get('/', (req, res) => {
