@@ -32,7 +32,7 @@ const menuCategoryRoutes = require('./routes/menuCategories');
 const menuItemVariantRoutes = require('./routes/menuItemVariants');
 const otherRevenueRoutes = require('./routes/otherRevenues'); 
 const revenueCategoryRoutes = require('./routes/revenueCategories'); 
-
+const expenseCategoryRoutes = require('./routes/expenseCategories'); 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -81,6 +81,7 @@ app.use('/menu-categories', menuCategoryRoutes);
 app.use('/menu-item-variants', menuItemVariantRoutes);
 app.use('/other-revenues', otherRevenueRoutes); 
 app.use('/revenue-categories', revenueCategoryRoutes);
+app.use('/expense-categories', expenseCategoryRoutes);
 
 // Root route
 app.get('/', (req, res) => {
